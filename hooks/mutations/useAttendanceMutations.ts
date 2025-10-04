@@ -24,8 +24,11 @@ export const useCheckIn = (
         queryKey: attendanceKeys.monthlySummary(userId, now.getMonth(), now.getFullYear())
       });
 
-      // Invalidate HR queries
-      queryClient.invalidateQueries({ queryKey: attendanceKeys.hrToday() });
+      // Invalidate ALL attendance-related queries to ensure fresh data
+      queryClient.invalidateQueries({
+        queryKey: ['attendance'],
+        refetchType: 'active'
+      });
     },
     ...options,
   });
@@ -48,7 +51,12 @@ export const useCheckOut = (
       queryClient.invalidateQueries({
         queryKey: attendanceKeys.monthlySummary(userId, now.getMonth(), now.getFullYear())
       });
-      queryClient.invalidateQueries({ queryKey: attendanceKeys.hrToday() });
+
+      // Invalidate ALL attendance-related queries to ensure fresh data
+      queryClient.invalidateQueries({
+        queryKey: ['attendance'],
+        refetchType: 'active'
+      });
     },
     ...options,
   });
@@ -79,9 +87,11 @@ export const useMarkAttendance = (
       // Invalidate the affected user's queries
       queryClient.invalidateQueries({ queryKey: attendanceKeys.today(variables.userId) });
 
-      // Invalidate HR's all attendance query
-      queryClient.invalidateQueries({ queryKey: attendanceKeys.hrAll() });
-      queryClient.invalidateQueries({ queryKey: attendanceKeys.hrToday() });
+      // Invalidate ALL attendance-related queries to ensure fresh data
+      queryClient.invalidateQueries({
+        queryKey: ['attendance'],
+        refetchType: 'active'
+      });
 
       // Invalidate monthly summary for the affected month
       const date = new Date(variables.date);
@@ -123,8 +133,12 @@ export const useUpdateAttendance = (
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: attendanceKeys.today(userId) });
       queryClient.invalidateQueries({ queryKey: attendanceKeys.byId(variables.recordId) });
-      queryClient.invalidateQueries({ queryKey: attendanceKeys.hrAll() });
-      queryClient.invalidateQueries({ queryKey: attendanceKeys.hrToday() });
+
+      // Invalidate ALL attendance-related queries to ensure fresh data
+      queryClient.invalidateQueries({
+        queryKey: ['attendance'],
+        refetchType: 'active'
+      });
     },
     ...options,
   });

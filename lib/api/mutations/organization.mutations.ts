@@ -2,8 +2,8 @@ import { supabase } from '@/lib/supabase/client';
 
 export const organizationMutations = {
   /**
-   * Create a new employee in the organization
-   * This creates both auth user and user profile
+   * Create a new employee using Edge Function with service role key
+   * This is the secure way to use service role key (server-side only)
    */
   createEmployee: async (params: {
     email: string;
@@ -17,53 +17,26 @@ export const organizationMutations = {
     dateOfJoining?: string;
     organizationId: string;
   }) => {
-    // Create auth user
-    const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-      email: params.email,
-      password: params.password,
-      email_confirm: true,
-    });
-
-    if (authError) throw authError;
-    if (!authData.user) throw new Error('Failed to create auth user');
-
-    // Create user profile
-    const { data: userData, error: userError } = await supabase
-      .from('users')
-      .insert({
-        id: authData.user.id,
+    // Call Edge Function which uses service role key securely server-side
+    const { data, error } = await supabase.functions.invoke('create-employee', {
+      body: {
         email: params.email,
-        full_name: params.fullName,
-        employee_id: params.employeeId,
+        password: params.password,
+        fullName: params.fullName,
+        employeeId: params.employeeId,
         phone: params.phone,
         department: params.department,
         designation: params.designation,
         role: params.role || 'employee',
-        date_of_joining: params.dateOfJoining || new Date().toISOString().split('T')[0],
-        organization_id: params.organizationId,
-        is_active: true,
-      })
-      .select()
-      .single();
+        dateOfJoining: params.dateOfJoining || new Date().toISOString().split('T')[0],
+        organizationId: params.organizationId,
+      },
+    });
 
-    if (userError) {
-      // Rollback: delete auth user if profile creation fails
-      await supabase.auth.admin.deleteUser(authData.user.id);
-      throw userError;
-    }
+    if (error) throw error;
+    if (!data?.success) throw new Error(data?.error || 'Failed to create employee');
 
-    // Insert into user_role_cache
-    await supabase
-      .from('user_role_cache')
-      .insert({
-        user_id: authData.user.id,
-        role: params.role || 'employee',
-      });
-
-    return {
-      authUser: authData.user,
-      user: userData,
-    };
+    return data.data;
   },
 
   /**

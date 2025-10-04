@@ -30,7 +30,8 @@ export const useCreateEmployee = (
   return useMutation({
     mutationFn: (params) =>
       organizationMutations.createEmployee({ ...params, organizationId }),
-    onSuccess: () => {
+    ...options,
+    onSuccess: (data, variables, context) => {
       // Invalidate employees list
       queryClient.invalidateQueries({
         queryKey: organizationKeys.employees(organizationId),
@@ -43,8 +44,10 @@ export const useCreateEmployee = (
       queryClient.invalidateQueries({
         queryKey: userKeys.all,
       });
+
+      // Call the custom onSuccess callback if provided
+      options?.onSuccess?.(data, variables, context);
     },
-    ...options,
   });
 };
 
@@ -75,7 +78,8 @@ export const useUpdateEmployee = (
   return useMutation({
     mutationFn: ({ userId, updates }) =>
       organizationMutations.updateEmployee(userId, updates),
-    onSuccess: (data, variables) => {
+    ...options,
+    onSuccess: (data, variables, context) => {
       // Invalidate specific user
       queryClient.invalidateQueries({
         queryKey: userKeys.byId(variables.userId),
@@ -88,8 +92,10 @@ export const useUpdateEmployee = (
       queryClient.invalidateQueries({
         queryKey: userKeys.all,
       });
+
+      // Call the custom onSuccess callback if provided
+      options?.onSuccess?.(data, variables, context);
     },
-    ...options,
   });
 };
 
@@ -104,7 +110,8 @@ export const useDeactivateEmployee = (
 
   return useMutation({
     mutationFn: (userId: string) => organizationMutations.deactivateEmployee(userId),
-    onSuccess: (data, userId) => {
+    ...options,
+    onSuccess: (data, userId, context) => {
       queryClient.invalidateQueries({
         queryKey: userKeys.byId(userId),
       });
@@ -114,8 +121,10 @@ export const useDeactivateEmployee = (
       queryClient.invalidateQueries({
         queryKey: organizationKeys.stats(organizationId),
       });
+
+      // Call the custom onSuccess callback if provided
+      options?.onSuccess?.(data, userId, context);
     },
-    ...options,
   });
 };
 
@@ -130,7 +139,8 @@ export const useReactivateEmployee = (
 
   return useMutation({
     mutationFn: (userId: string) => organizationMutations.reactivateEmployee(userId),
-    onSuccess: (data, userId) => {
+    ...options,
+    onSuccess: (data, userId, context) => {
       queryClient.invalidateQueries({
         queryKey: userKeys.byId(userId),
       });
@@ -140,8 +150,10 @@ export const useReactivateEmployee = (
       queryClient.invalidateQueries({
         queryKey: organizationKeys.stats(organizationId),
       });
+
+      // Call the custom onSuccess callback if provided
+      options?.onSuccess?.(data, userId, context);
     },
-    ...options,
   });
 };
 
@@ -167,14 +179,17 @@ export const useUpdateOrganization = (
   return useMutation({
     mutationFn: ({ organizationId, updates }) =>
       organizationMutations.updateOrganization(organizationId, updates),
-    onSuccess: (data, variables) => {
+    ...options,
+    onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({
         queryKey: organizationKeys.byId(variables.organizationId),
       });
       queryClient.invalidateQueries({
         queryKey: organizationKeys.current(),
       });
+
+      // Call the custom onSuccess callback if provided
+      options?.onSuccess?.(data, variables, context);
     },
-    ...options,
   });
 };

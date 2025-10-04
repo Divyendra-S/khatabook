@@ -15,6 +15,9 @@ import { useAuth } from '@/hooks/auth/useAuth';
 import { useAllUsers } from '@/hooks/queries/useUser';
 import { useMarkAttendance, useUpdateAttendance } from '@/hooks/mutations/useAttendanceMutations';
 import { AttendanceRecord, User } from '@/lib/types';
+import DatePicker from '@/components/ui/DatePicker';
+import TimePicker from '@/components/ui/TimePicker';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface MarkAttendanceModalProps {
   visible: boolean;
@@ -31,9 +34,19 @@ export default function MarkAttendanceModal({
 }: MarkAttendanceModalProps) {
   const { user } = useAuth();
   const { data: employees } = useAllUsers({ role: 'employee' });
+  const queryClient = useQueryClient();
+
+  const getTodayDate = () => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   const [formData, setFormData] = useState({
     userId: employeeId || '',
-    date: new Date().toISOString().split('T')[0],
+    date: getTodayDate(),
     checkInTime: '',
     checkOutTime: '',
     notes: '',
@@ -59,7 +72,12 @@ export default function MarkAttendanceModal({
   }, [existingRecord]);
 
   const markMutation = useMarkAttendance(user?.id || '', {
-    onSuccess: () => {
+    onSuccess: async () => {
+      // Force refetch all attendance queries
+      await queryClient.refetchQueries({
+        queryKey: ['attendance'],
+        type: 'active',
+      });
       Alert.alert('Success', 'Attendance marked successfully');
       onClose();
       resetForm();
@@ -70,7 +88,12 @@ export default function MarkAttendanceModal({
   });
 
   const updateMutation = useUpdateAttendance(formData.userId, {
-    onSuccess: () => {
+    onSuccess: async () => {
+      // Force refetch all attendance queries
+      await queryClient.refetchQueries({
+        queryKey: ['attendance'],
+        type: 'active',
+      });
       Alert.alert('Success', 'Attendance updated successfully');
       onClose();
       resetForm();
@@ -83,7 +106,7 @@ export default function MarkAttendanceModal({
   const resetForm = () => {
     setFormData({
       userId: '',
-      date: new Date().toISOString().split('T')[0],
+      date: getTodayDate(),
       checkInTime: '',
       checkOutTime: '',
       notes: '',
@@ -106,11 +129,19 @@ export default function MarkAttendanceModal({
       return;
     }
 
-    // Convert time to ISO format
-    const checkInDateTime = `${formData.date}T${formData.checkInTime}:00`;
-    const checkOutDateTime = formData.checkOutTime
-      ? `${formData.date}T${formData.checkOutTime}:00`
-      : undefined;
+    // Convert local time to UTC ISO format
+    const [checkInHour, checkInMinute] = formData.checkInTime.split(':');
+    const checkInDate = new Date(formData.date);
+    checkInDate.setHours(parseInt(checkInHour), parseInt(checkInMinute), 0, 0);
+    const checkInDateTime = checkInDate.toISOString();
+
+    let checkOutDateTime: string | undefined;
+    if (formData.checkOutTime) {
+      const [checkOutHour, checkOutMinute] = formData.checkOutTime.split(':');
+      const checkOutDate = new Date(formData.date);
+      checkOutDate.setHours(parseInt(checkOutHour), parseInt(checkOutMinute), 0, 0);
+      checkOutDateTime = checkOutDate.toISOString();
+    }
 
     if (existingRecord) {
       // Update existing record
@@ -218,53 +249,32 @@ export default function MarkAttendanceModal({
             )}
 
             {/* Date */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>
-                Date <Text style={styles.required}>*</Text>
-              </Text>
-              <View style={styles.inputWrapper}>
-                <Ionicons name="calendar-outline" size={20} color="#64748B" />
-                <TextInput
-                  style={styles.input}
-                  placeholder="YYYY-MM-DD"
-                  value={formData.date}
-                  onChangeText={(text) => setFormData({ ...formData, date: text })}
-                  placeholderTextColor="#94A3B8"
-                />
-              </View>
-            </View>
+            <DatePicker
+              value={formData.date}
+              onChange={(date) => setFormData({ ...formData, date })}
+              label="Date"
+              required
+              maximumDate={new Date()}
+            />
 
             {/* Check-in Time */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>
-                Check-in Time <Text style={styles.required}>*</Text>
-              </Text>
-              <View style={styles.inputWrapper}>
-                <Ionicons name="log-in-outline" size={20} color="#10B981" />
-                <TextInput
-                  style={styles.input}
-                  placeholder="HH:MM (e.g., 09:00)"
-                  value={formData.checkInTime}
-                  onChangeText={(text) => setFormData({ ...formData, checkInTime: text })}
-                  placeholderTextColor="#94A3B8"
-                />
-              </View>
-            </View>
+            <TimePicker
+              value={formData.checkInTime}
+              onChange={(time) => setFormData({ ...formData, checkInTime: time })}
+              label="Check-in Time"
+              required
+              iconName="log-in-outline"
+              iconColor="#10B981"
+            />
 
             {/* Check-out Time */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Check-out Time</Text>
-              <View style={styles.inputWrapper}>
-                <Ionicons name="log-out-outline" size={20} color="#EF4444" />
-                <TextInput
-                  style={styles.input}
-                  placeholder="HH:MM (e.g., 18:00)"
-                  value={formData.checkOutTime}
-                  onChangeText={(text) => setFormData({ ...formData, checkOutTime: text })}
-                  placeholderTextColor="#94A3B8"
-                />
-              </View>
-            </View>
+            <TimePicker
+              value={formData.checkOutTime}
+              onChange={(time) => setFormData({ ...formData, checkOutTime: time })}
+              label="Check-out Time"
+              iconName="log-out-outline"
+              iconColor="#EF4444"
+            />
 
             {/* Notes */}
             <View style={styles.inputGroup}>

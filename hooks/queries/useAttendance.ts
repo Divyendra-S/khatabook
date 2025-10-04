@@ -148,6 +148,26 @@ export const useAttendanceStats = (
   });
 };
 
+/**
+ * HR: Hook to fetch all employees with attendance status (including absent)
+ */
+export const useAllEmployeesAttendance = (
+  filters?: {
+    startDate?: string;
+    endDate?: string;
+    date?: string;
+  },
+  options?: Omit<UseQueryOptions<AttendanceWithUser[]>, 'queryKey' | 'queryFn'>
+) => {
+  return useQuery({
+    queryKey: [...attendanceKeys.all, 'hr', 'all-employees', filters],
+    queryFn: () => attendanceQueries.getAllEmployeesAttendance(filters),
+    staleTime: 1000 * 60 * 3,
+    ...options,
+  });
+};
+
 // Aliases for HR hooks
 export const useHRTodayAttendance = useTodayAllAttendance;
 export const useHRAllAttendanceRecords = useAllAttendanceRecords;
+export const useHRAllEmployeesAttendance = useAllEmployeesAttendance;

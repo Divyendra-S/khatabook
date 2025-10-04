@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCreateEmployee } from '@/hooks/mutations/useOrganizationMutations';
 import { useCurrentOrganization } from '@/hooks/queries/useOrganization';
 import { UserRole } from '@/lib/types';
+import DatePicker from '@/components/ui/DatePicker';
 
 export default function AddEmployeeScreen() {
   const insets = useSafeAreaInsets();
@@ -275,20 +276,12 @@ export default function AddEmployeeScreen() {
             </View>
           </View>
 
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Date of Joining</Text>
-            <View style={styles.inputWrapper}>
-              <Ionicons name="calendar-outline" size={20} color="#64748B" />
-              <TextInput
-                style={styles.input}
-                placeholder="YYYY-MM-DD"
-                value={formData.dateOfJoining}
-                onChangeText={(text) => setFormData({ ...formData, dateOfJoining: text })}
-                placeholderTextColor="#94A3B8"
-              />
-            </View>
-            <Text style={styles.helperText}>Format: YYYY-MM-DD</Text>
-          </View>
+          <DatePicker
+            value={formData.dateOfJoining}
+            onChange={(date) => setFormData({ ...formData, dateOfJoining: date })}
+            label="Date of Joining"
+            maximumDate={new Date()}
+          />
         </View>
 
         <TouchableOpacity

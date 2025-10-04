@@ -5,14 +5,18 @@ export const attendanceMutations = {
    * Check in for today
    */
   checkIn: async (userId: string, notes?: string) => {
-    const today = new Date().toISOString().split('T')[0];
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    const todayDate = `${year}-${month}-${day}`;
     const now = new Date().toISOString();
 
     const { data, error } = await supabase
       .from('attendance_records')
       .insert({
         user_id: userId,
-        date: today,
+        date: todayDate,
         check_in_time: now,
         marked_by: userId,
         marked_by_role: 'self',

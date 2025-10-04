@@ -1,23 +1,24 @@
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator, StatusBar, TouchableOpacity } from 'react-native';
 import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
 import { useAuth } from '@/hooks/auth/useAuth';
-import { useHRTodayAttendance } from '@/hooks/queries/useAttendance';
+import { useHRAllEmployeesAttendance } from '@/hooks/queries/useAttendance';
 import { useHRPendingSalaries } from '@/hooks/queries/useSalary';
 import { useHRPendingLeaveRequests } from '@/hooks/queries/useLeave';
 import { useAllUsers } from '@/hooks/queries/useUser';
-import { formatDate } from '@/lib/utils/date.utils';
+import { formatDate, formatDateToISO } from '@/lib/utils/date.utils';
 import { useRouter } from 'expo-router';
 
 export default function HRDashboard() {
   const router = useRouter();
   const { user } = useAuth();
-  const { data: todayAttendance, isLoading: loadingAttendance } = useHRTodayAttendance();
+  const today = formatDateToISO(new Date());
+  const { data: todayAttendance, isLoading: loadingAttendance } = useHRAllEmployeesAttendance({ date: today });
   const { data: pendingSalaries, isLoading: loadingSalaries } = useHRPendingSalaries();
   const { data: pendingLeaves, isLoading: loadingLeaves } = useHRPendingLeaveRequests();
   const { data: allUsers, isLoading: loadingUsers } = useAllUsers();
 
   const activeEmployees = allUsers?.filter(u => u.is_active && u.role === 'employee').length || 0;
-  const checkedInToday = todayAttendance?.length || 0;
+  const checkedInToday = todayAttendance?.filter(a => a.check_in_time !== null).length || 0;
 
   return (
     <View style={styles.container}>

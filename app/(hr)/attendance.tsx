@@ -1,22 +1,20 @@
 import { useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
-import { useHRAllAttendanceRecords } from '@/hooks/queries/useAttendance';
-import { formatDate, formatTime, getFirstDayOfMonth, getLastDayOfMonth } from '@/lib/utils/date.utils';
+import { useHRAllEmployeesAttendance } from '@/hooks/queries/useAttendance';
+import { formatDate, formatTime, formatDateToISO } from '@/lib/utils/date.utils';
 import { formatHours, getAttendanceStatus } from '@/lib/utils/attendance.utils';
 import { AttendanceWithUser, AttendanceRecord } from '@/lib/types';
 import MarkAttendanceModal from '@/components/attendance/MarkAttendanceModal';
 
 export default function HRAttendanceScreen() {
-  const [selectedMonth, setSelectedMonth] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState(new Date());
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<AttendanceRecord | undefined>(undefined);
-  const startDate = getFirstDayOfMonth(selectedMonth).toISOString().split('T')[0];
-  const endDate = getLastDayOfMonth(selectedMonth).toISOString().split('T')[0];
+  const targetDate = formatDateToISO(selectedDate);
 
-  const { data: records, isLoading } = useHRAllAttendanceRecords({
-    startDate,
-    endDate,
+  const { data: records, isLoading } = useHRAllEmployeesAttendance({
+    date: targetDate,
   });
 
   const handleMarkAttendance = () => {
@@ -102,20 +100,30 @@ export default function HRAttendanceScreen() {
     );
   };
 
-  const previousMonth = () => {
-    setSelectedMonth(prev => new Date(prev.getFullYear(), prev.getMonth() - 1));
+  const previousDay = () => {
+    setSelectedDate(prev => {
+      const newDate = new Date(prev);
+      newDate.setDate(newDate.getDate() - 1);
+      return newDate;
+    });
   };
 
-  const nextMonth = () => {
+  const nextDay = () => {
     const now = new Date();
-    if (selectedMonth.getMonth() < now.getMonth() || selectedMonth.getFullYear() < now.getFullYear()) {
-      setSelectedMonth(prev => new Date(prev.getFullYear(), prev.getMonth() + 1));
+    const tomorrow = new Date(now);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    if (selectedDate < now) {
+      setSelectedDate(prev => {
+        const newDate = new Date(prev);
+        newDate.setDate(newDate.getDate() + 1);
+        return newDate;
+      });
     }
   };
 
-  const isCurrentMonth =
-    selectedMonth.getMonth() === new Date().getMonth() &&
-    selectedMonth.getFullYear() === new Date().getFullYear();
+  const isToday =
+    selectedDate.toDateString() === new Date().toDateString();
 
   return (
     <View style={styles.container}>
@@ -132,7 +140,7 @@ export default function HRAttendanceScreen() {
 
       <View style={styles.monthSelector}>
         <TouchableOpacity
-          onPress={previousMonth}
+          onPress={previousDay}
           style={styles.monthButton}
           activeOpacity={0.7}
         >
@@ -140,22 +148,27 @@ export default function HRAttendanceScreen() {
         </TouchableOpacity>
 
         <View style={styles.monthTextContainer}>
-          <MaterialCommunityIcons name="calendar-month" size={20} color="#6366F1" />
+          <MaterialCommunityIcons name="calendar-today" size={20} color="#6366F1" />
           <Text style={styles.monthText}>
-            {selectedMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+            {selectedDate.toLocaleDateString('en-US', {
+              weekday: 'short',
+              month: 'short',
+              day: 'numeric',
+              year: 'numeric'
+            })}
           </Text>
         </View>
 
         <TouchableOpacity
-          onPress={nextMonth}
-          style={[styles.monthButton, isCurrentMonth && styles.monthButtonDisabled]}
-          disabled={isCurrentMonth}
+          onPress={nextDay}
+          style={[styles.monthButton, isToday && styles.monthButtonDisabled]}
+          disabled={isToday}
           activeOpacity={0.7}
         >
           <Ionicons
             name="chevron-forward"
             size={24}
-            color={isCurrentMonth ? '#CBD5E1' : '#6366F1'}
+            color={isToday ? '#CBD5E1' : '#6366F1'}
           />
         </TouchableOpacity>
       </View>
@@ -175,8 +188,8 @@ export default function HRAttendanceScreen() {
       ) : (
         <View style={styles.emptyContainer}>
           <Feather name="calendar" size={64} color="#CBD5E1" />
-          <Text style={styles.emptyText}>No attendance records for this month</Text>
-          <Text style={styles.emptySubtext}>Records will appear here once employees check in</Text>
+          <Text style={styles.emptyText}>No employees found</Text>
+          <Text style={styles.emptySubtext}>Add employees to track their attendance</Text>
         </View>
       )}
 
