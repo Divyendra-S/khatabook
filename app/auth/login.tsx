@@ -80,7 +80,7 @@ export default function LoginScreen() {
             </Text>
           </TouchableOpacity>
 
-          <Link href="/auth/forgot-password" asChild>
+          {/* <Link href="/auth/forgot-password" asChild>
             <TouchableOpacity style={styles.linkButton}>
               <Text style={styles.linkText}>Forgot Password?</Text>
             </TouchableOpacity>
@@ -97,7 +97,7 @@ export default function LoginScreen() {
               <MaterialCommunityIcons name="account-plus-outline" size={20} color="#6366F1" />
               <Text style={styles.secondaryButtonText}>Create New Account</Text>
             </TouchableOpacity>
-          </Link>
+          </Link> */}
         </View>
       </View>
     </KeyboardAvoidingView>
