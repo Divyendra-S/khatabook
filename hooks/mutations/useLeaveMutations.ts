@@ -16,12 +16,33 @@ export const useCreateLeaveRequest = (
 
   return useMutation({
     mutationFn: (params) => leaveMutations.createLeaveRequest({ ...params, userId }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: leaveKeys.list(userId) });
-      queryClient.invalidateQueries({ queryKey: leaveKeys.upcoming(userId) });
-      queryClient.invalidateQueries({ queryKey: leaveKeys.hrPending() });
+    onSuccess: async (data, variables, context) => {
+      // Invalidate and refetch leave queries immediately
+      await queryClient.invalidateQueries({
+        queryKey: leaveKeys.list(userId),
+        refetchType: 'all'
+      });
+      await queryClient.invalidateQueries({
+        queryKey: leaveKeys.upcoming(userId),
+        refetchType: 'all'
+      });
+      await queryClient.invalidateQueries({
+        queryKey: leaveKeys.hrPending(),
+        refetchType: 'all'
+      });
+
+      // Force refetch active queries
+      await queryClient.refetchQueries({
+        queryKey: leaveKeys.list(userId),
+        type: 'active'
+      });
+
+      // Call user's onSuccess if provided
+      options?.onSuccess?.(data, variables, context);
     },
-    ...options,
+    onError: options?.onError,
+    onMutate: options?.onMutate,
+    onSettled: options?.onSettled,
   });
 };
 

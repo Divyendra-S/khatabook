@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Modal, TextInput, Alert, StatusBar, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Modal, TextInput, Alert, StatusBar, ScrollView, Platform } from 'react-native';
 import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { useAuth } from '@/hooks/auth/useAuth';
 import { useLeaveRequests } from '@/hooks/queries/useLeave';
 import { useCreateLeaveRequest } from '@/hooks/mutations/useLeaveMutations';
@@ -14,12 +15,16 @@ export default function LeaveScreen() {
   const userId = user?.id || '';
 
   const [modalVisible, setModalVisible] = useState(false);
+  const [showStartDatePicker, setShowStartDatePicker] = useState(false);
+  const [showEndDatePicker, setShowEndDatePicker] = useState(false);
   const [formData, setFormData] = useState({
     leaveType: 'casual' as LeaveType,
     startDate: '',
     endDate: '',
     reason: '',
   });
+  const [startDate, setStartDate] = useState(new Date());
+  const [endDate, setEndDate] = useState(new Date());
 
   const { data: leaveRequests, isLoading } = useLeaveRequests(userId);
   const createLeaveMutation = useCreateLeaveRequest(userId, {
@@ -32,11 +37,31 @@ export default function LeaveScreen() {
         endDate: '',
         reason: '',
       });
+      setStartDate(new Date());
+      setEndDate(new Date());
     },
     onError: (error) => {
       Alert.alert('Error', error.message);
     },
   });
+
+  const handleStartDateChange = (event: any, selectedDate?: Date) => {
+    setShowStartDatePicker(Platform.OS === 'ios');
+    if (selectedDate) {
+      setStartDate(selectedDate);
+      const formattedDate = selectedDate.toISOString().split('T')[0];
+      setFormData({ ...formData, startDate: formattedDate });
+    }
+  };
+
+  const handleEndDateChange = (event: any, selectedDate?: Date) => {
+    setShowEndDatePicker(Platform.OS === 'ios');
+    if (selectedDate) {
+      setEndDate(selectedDate);
+      const formattedDate = selectedDate.toISOString().split('T')[0];
+      setFormData({ ...formData, endDate: formattedDate });
+    }
+  };
 
   const handleSubmit = () => {
     if (!formData.startDate || !formData.endDate || !formData.reason) {
@@ -209,30 +234,48 @@ export default function LeaveScreen() {
 
             <View style={styles.formSection}>
               <Text style={styles.label}>Start Date</Text>
-              <View style={styles.inputWrapper}>
+              <TouchableOpacity
+                style={styles.datePickerButton}
+                onPress={() => setShowStartDatePicker(true)}
+                activeOpacity={0.7}
+              >
                 <Ionicons name="calendar-outline" size={20} color="#64748B" style={styles.inputIcon} />
-                <TextInput
-                  style={styles.input}
-                  placeholder="YYYY-MM-DD"
-                  placeholderTextColor="#94A3B8"
-                  value={formData.startDate}
-                  onChangeText={text => setFormData({ ...formData, startDate: text })}
+                <Text style={[styles.datePickerText, formData.startDate && styles.datePickerTextSelected]}>
+                  {formData.startDate ? formatDate(new Date(formData.startDate)) : 'Select start date'}
+                </Text>
+              </TouchableOpacity>
+              {showStartDatePicker && (
+                <DateTimePicker
+                  value={startDate}
+                  mode="date"
+                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                  onChange={handleStartDateChange}
+                  minimumDate={new Date()}
                 />
-              </View>
+              )}
             </View>
 
             <View style={styles.formSection}>
               <Text style={styles.label}>End Date</Text>
-              <View style={styles.inputWrapper}>
+              <TouchableOpacity
+                style={styles.datePickerButton}
+                onPress={() => setShowEndDatePicker(true)}
+                activeOpacity={0.7}
+              >
                 <Ionicons name="calendar" size={20} color="#64748B" style={styles.inputIcon} />
-                <TextInput
-                  style={styles.input}
-                  placeholder="YYYY-MM-DD"
-                  placeholderTextColor="#94A3B8"
-                  value={formData.endDate}
-                  onChangeText={text => setFormData({ ...formData, endDate: text })}
+                <Text style={[styles.datePickerText, formData.endDate && styles.datePickerTextSelected]}>
+                  {formData.endDate ? formatDate(new Date(formData.endDate)) : 'Select end date'}
+                </Text>
+              </TouchableOpacity>
+              {showEndDatePicker && (
+                <DateTimePicker
+                  value={endDate}
+                  mode="date"
+                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                  onChange={handleEndDateChange}
+                  minimumDate={formData.startDate ? new Date(formData.startDate) : new Date()}
                 />
-              </View>
+              )}
             </View>
 
             <View style={styles.formSection}>
@@ -568,6 +611,24 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8FAFC',
     color: '#0F172A',
     height: 100,
+  },
+  datePickerButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    backgroundColor: '#F8FAFC',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  datePickerText: {
+    flex: 1,
+    fontSize: 15,
+    color: '#94A3B8',
+  },
+  datePickerTextSelected: {
+    color: '#0F172A',
   },
   modalActions: {
     flexDirection: 'row',
