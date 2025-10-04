@@ -4,10 +4,13 @@ import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
 import { useHRAllAttendanceRecords } from '@/hooks/queries/useAttendance';
 import { formatDate, formatTime, getFirstDayOfMonth, getLastDayOfMonth } from '@/lib/utils/date.utils';
 import { formatHours, getAttendanceStatus } from '@/lib/utils/attendance.utils';
-import { AttendanceWithUser } from '@/lib/types';
+import { AttendanceWithUser, AttendanceRecord } from '@/lib/types';
+import MarkAttendanceModal from '@/components/attendance/MarkAttendanceModal';
 
 export default function HRAttendanceScreen() {
   const [selectedMonth, setSelectedMonth] = useState(new Date());
+  const [modalVisible, setModalVisible] = useState(false);
+  const [selectedRecord, setSelectedRecord] = useState<AttendanceRecord | undefined>(undefined);
   const startDate = getFirstDayOfMonth(selectedMonth).toISOString().split('T')[0];
   const endDate = getLastDayOfMonth(selectedMonth).toISOString().split('T')[0];
 
@@ -15,6 +18,16 @@ export default function HRAttendanceScreen() {
     startDate,
     endDate,
   });
+
+  const handleMarkAttendance = () => {
+    setSelectedRecord(undefined);
+    setModalVisible(true);
+  };
+
+  const handleEditAttendance = (record: AttendanceRecord) => {
+    setSelectedRecord(record);
+    setModalVisible(true);
+  };
 
   const renderAttendanceItem = ({ item }: { item: AttendanceWithUser }) => {
     const status = getAttendanceStatus(item);
@@ -26,7 +39,7 @@ export default function HRAttendanceScreen() {
     const statusConfig = statusColors[status as keyof typeof statusColors] || statusColors.Present;
 
     return (
-      <View style={styles.card}>
+      <TouchableOpacity style={styles.card} onPress={() => handleEditAttendance(item as AttendanceRecord)} activeOpacity={0.7}>
         <View style={styles.cardHeader}>
           <View style={styles.cardHeaderLeft}>
             <View style={[styles.dateIconWrapper, { backgroundColor: statusConfig.bg }]}>
@@ -85,7 +98,7 @@ export default function HRAttendanceScreen() {
             <Text style={styles.notesText}>{item.notes}</Text>
           </View>
         )}
-      </View>
+      </TouchableOpacity>
     );
   };
 
@@ -106,6 +119,16 @@ export default function HRAttendanceScreen() {
 
   return (
     <View style={styles.container}>
+      <View style={styles.headerActions}>
+        <TouchableOpacity
+          style={styles.markButton}
+          onPress={handleMarkAttendance}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="add-circle" size={20} color="#FFFFFF" />
+          <Text style={styles.markButtonText}>Mark Attendance</Text>
+        </TouchableOpacity>
+      </View>
 
       <View style={styles.monthSelector}>
         <TouchableOpacity
@@ -156,6 +179,15 @@ export default function HRAttendanceScreen() {
           <Text style={styles.emptySubtext}>Records will appear here once employees check in</Text>
         </View>
       )}
+
+      <MarkAttendanceModal
+        visible={modalVisible}
+        onClose={() => {
+          setModalVisible(false);
+          setSelectedRecord(undefined);
+        }}
+        existingRecord={selectedRecord}
+      />
     </View>
   );
 }
@@ -164,6 +196,33 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F8FAFC',
+  },
+  headerActions: {
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+  },
+  markButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#6366F1',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    gap: 8,
+    shadowColor: '#6366F1',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  markButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
   monthSelector: {
     flexDirection: 'row',

@@ -184,6 +184,33 @@ export type Database = {
           },
         ]
       }
+      organizations: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       salary_records: {
         Row: {
           allowances: number | null
@@ -275,6 +302,24 @@ export type Database = {
           },
         ]
       }
+      user_role_cache: {
+        Row: {
+          role: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          role?: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          role?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       users: {
         Row: {
           created_at: string | null
@@ -286,6 +331,7 @@ export type Database = {
           full_name: string
           id: string
           is_active: boolean | null
+          organization_id: string | null
           phone: string | null
           profile_picture_url: string | null
           role: string
@@ -301,6 +347,7 @@ export type Database = {
           full_name: string
           id: string
           is_active?: boolean | null
+          organization_id?: string | null
           phone?: string | null
           profile_picture_url?: string | null
           role: string
@@ -316,12 +363,21 @@ export type Database = {
           full_name?: string
           id?: string
           is_active?: boolean | null
+          organization_id?: string | null
           phone?: string | null
           profile_picture_url?: string | null
           role?: string
           updated_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "users_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
@@ -347,6 +403,10 @@ export type Database = {
           total_days: number
           total_hours: number
         }[]
+      }
+      get_my_role: {
+        Args: Record<PropertyKey, never>
+        Returns: string
       }
     }
     Enums: {

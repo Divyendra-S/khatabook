@@ -6,6 +6,7 @@ export type AttendanceRecord = Tables<'attendance_records'>;
 export type SalaryRecord = Tables<'salary_records'>;
 export type LeaveRequest = Tables<'leave_requests'>;
 export type Notification = Tables<'notifications'>;
+export type Organization = Tables<'organizations'>;
 
 // Enums
 export type UserRole = 'employee' | 'hr' | 'admin';
@@ -16,6 +17,10 @@ export type PaymentMethod = 'bank_transfer' | 'cash' | 'cheque' | 'upi';
 export type NotificationType = 'attendance' | 'salary' | 'leave' | 'announcement' | 'system';
 
 // Extended types with relations
+export type UserWithOrganization = User & {
+  organization?: Organization;
+};
+
 export type AttendanceWithUser = AttendanceRecord & {
   user?: Pick<User, 'full_name' | 'employee_id'>;
 };
@@ -107,4 +112,16 @@ export interface EmployeeForm {
   department?: string;
   designation?: string;
   dateOfJoining?: string;
+  password?: string;
+}
+
+// Organization stats
+export interface OrganizationStats {
+  totalEmployees: number;
+  activeEmployees: number;
+  hrCount: number;
+  employeeCount: number;
+  presentToday: number;
+  absentToday: number;
+  pendingLeaveRequests: number;
 }

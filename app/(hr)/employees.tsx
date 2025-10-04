@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
-import { MaterialCommunityIcons, Feather } from '@expo/vector-icons';
+import { MaterialCommunityIcons, Feather, Ionicons } from '@expo/vector-icons';
 import { useAllUsers } from '@/hooks/queries/useUser';
 import { User } from '@/lib/types';
 
@@ -54,6 +54,17 @@ export default function EmployeesScreen() {
 
   return (
     <View style={styles.container}>
+      <View style={styles.headerActions}>
+        <TouchableOpacity
+          style={styles.addButton}
+          onPress={() => router.push('/(hr)/employee/add')}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="person-add" size={20} color="#FFFFFF" />
+          <Text style={styles.addButtonText}>Add Employee</Text>
+        </TouchableOpacity>
+      </View>
+
       {isLoading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#6366F1" />
@@ -70,7 +81,7 @@ export default function EmployeesScreen() {
         <View style={styles.emptyContainer}>
           <Feather name="users" size={64} color="#CBD5E1" />
           <Text style={styles.emptyText}>No employees found</Text>
-          <Text style={styles.emptySubtext}>Employees will appear here</Text>
+          <Text style={styles.emptySubtext}>Tap the button above to add your first employee</Text>
         </View>
       )}
     </View>
@@ -81,6 +92,38 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F8FAFC',
+  },
+  headerActions: {
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  addButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#6366F1',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    gap: 8,
+    shadowColor: '#6366F1',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  addButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
   listContent: {
     padding: 20,
