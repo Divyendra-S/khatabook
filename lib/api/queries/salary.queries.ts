@@ -18,7 +18,16 @@ export const salaryQueries = {
 
     const { data, error } = await query;
     if (error) throw error;
-    return data || [];
+
+    // Add computed fields for compatibility
+    const records = (data || []).map((record: any) => ({
+      ...record,
+      month_year: `${new Date(record.year, record.month - 1).toLocaleString('default', { month: 'long' })} ${record.year}`,
+      days_worked: record.present_days,
+      paid_date: record.payment_date,
+    }));
+
+    return records;
   },
 
   /**
@@ -36,7 +45,16 @@ export const salaryQueries = {
       .single();
 
     if (error && error.code !== 'PGRST116') throw error;
-    return data;
+
+    if (!data) return null;
+
+    // Add computed fields for compatibility
+    return {
+      ...data,
+      month_year: `${new Date(data.year, data.month - 1).toLocaleString('default', { month: 'long' })} ${data.year}`,
+      days_worked: data.present_days,
+      paid_date: data.payment_date,
+    } as any;
   },
 
   /**
@@ -56,7 +74,16 @@ export const salaryQueries = {
       .single();
 
     if (error && error.code !== 'PGRST116') throw error;
-    return data;
+
+    if (!data) return null;
+
+    // Add computed fields for compatibility
+    return {
+      ...data,
+      month_year: `${new Date(data.year, data.month - 1).toLocaleString('default', { month: 'long' })} ${data.year}`,
+      days_worked: data.present_days,
+      paid_date: data.payment_date,
+    } as any;
   },
 
   // HR queries
@@ -73,7 +100,7 @@ export const salaryQueries = {
       .from('salary_records')
       .select(`
         *,
-        user:users(full_name, employee_id, department)
+        users!user_id(full_name, employee_id, department)
       `);
 
     if (filters?.month) query = query.eq('month', filters.month);
@@ -86,7 +113,16 @@ export const salaryQueries = {
       .order('month', { ascending: false });
 
     if (error) throw error;
-    return (data || []) as SalaryWithUser[];
+
+    // Add computed fields for compatibility
+    const records = (data || []).map((record: any) => ({
+      ...record,
+      month_year: `${new Date(record.year, record.month - 1).toLocaleString('default', { month: 'long' })} ${record.year}`,
+      days_worked: record.present_days,
+      paid_date: record.payment_date,
+    }));
+
+    return records as SalaryWithUser[];
   },
 
   /**
@@ -97,13 +133,22 @@ export const salaryQueries = {
       .from('salary_records')
       .select(`
         *,
-        user:users(full_name, employee_id, department, designation)
+        users!user_id(full_name, employee_id, department, designation)
       `)
       .eq('id', recordId)
       .single();
 
     if (error && error.code !== 'PGRST116') throw error;
-    return data as SalaryWithUser;
+
+    if (!data) return null;
+
+    // Add computed fields for compatibility
+    return {
+      ...data,
+      month_year: `${new Date(data.year, data.month - 1).toLocaleString('default', { month: 'long' })} ${data.year}`,
+      days_worked: data.present_days,
+      paid_date: data.payment_date,
+    } as SalaryWithUser;
   },
 
   /**
@@ -114,13 +159,22 @@ export const salaryQueries = {
       .from('salary_records')
       .select(`
         *,
-        user:users(full_name, employee_id, department)
+        users!user_id(full_name, employee_id, department)
       `)
       .in('status', ['draft', 'pending'])
       .order('created_at', { ascending: true });
 
     if (error) throw error;
-    return (data || []) as SalaryWithUser[];
+
+    // Add computed fields for compatibility
+    const records = (data || []).map((record: any) => ({
+      ...record,
+      month_year: `${new Date(record.year, record.month - 1).toLocaleString('default', { month: 'long' })} ${record.year}`,
+      days_worked: record.present_days,
+      paid_date: record.payment_date,
+    }));
+
+    return records as SalaryWithUser[];
   },
 
   /**

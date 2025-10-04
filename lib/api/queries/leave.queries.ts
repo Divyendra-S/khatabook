@@ -102,8 +102,7 @@ export const leaveQueries = {
       .from('leave_requests')
       .select(`
         *,
-        user:users(full_name, employee_id, department),
-        reviewer:reviewed_by(full_name)
+        users!user_id(full_name, employee_id, department)
       `);
 
     if (filters?.status) query = query.eq('status', filters.status);
@@ -124,7 +123,7 @@ export const leaveQueries = {
       .from('leave_requests')
       .select(`
         *,
-        user:users(full_name, employee_id, department)
+        users!user_id(full_name, employee_id, department)
       `)
       .eq('status', 'pending')
       .order('created_at', { ascending: true });

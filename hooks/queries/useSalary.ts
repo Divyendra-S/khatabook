@@ -80,7 +80,8 @@ export const useAllSalaryRecords = (
   return useQuery({
     queryKey: salaryKeys.hrAll(filters),
     queryFn: () => salaryQueries.getAllSalaryRecords(filters),
-    staleTime: 1000 * 60 * 5,
+    staleTime: 0, // Always refetch on invalidation
+    refetchOnWindowFocus: true,
     ...options,
   });
 };

@@ -76,7 +76,7 @@ export default function HRSalaryScreen() {
             <View>
               <Text style={styles.monthYear}>{item.month_year}</Text>
               <Text style={styles.cardSubtext}>
-                Employee ID: {item.user_id.substring(0, 8)}
+                {(item as any).users?.full_name || 'Unknown Employee'}
               </Text>
             </View>
           </View>

@@ -38,11 +38,24 @@ export const useReviewLeaveRequest = (
   return useMutation({
     mutationFn: ({ requestId, status, reviewedBy, reviewerNotes }) =>
       leaveMutations.reviewLeaveRequest(requestId, status, reviewedBy, reviewerNotes),
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: leaveKeys.list(data.user_id) });
-      queryClient.invalidateQueries({ queryKey: leaveKeys.hrAll() });
-      queryClient.invalidateQueries({ queryKey: leaveKeys.hrPending() });
+    onSuccess: async (data, variables, context) => {
+      // Invalidate and refetch ALL leave queries immediately
+      await queryClient.invalidateQueries({
+        queryKey: leaveKeys.all,
+        refetchType: 'all'
+      });
+
+      // Force refetch all active leave queries
+      await queryClient.refetchQueries({
+        queryKey: leaveKeys.all,
+        type: 'active'
+      });
+
+      // Call user's onSuccess if provided
+      options?.onSuccess?.(data, variables, context);
     },
-    ...options,
+    onError: options?.onError,
+    onMutate: options?.onMutate,
+    onSettled: options?.onSettled,
   });
 };

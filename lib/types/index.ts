@@ -3,7 +3,12 @@ import { Tables } from '../supabase/types';
 // Database table types
 export type User = Tables<'users'>;
 export type AttendanceRecord = Tables<'attendance_records'>;
-export type SalaryRecord = Tables<'salary_records'>;
+export type SalaryRecord = Tables<'salary_records'> & {
+  // Computed fields added by query functions for UI compatibility
+  month_year?: string;
+  days_worked?: number;
+  paid_date?: string | null;
+};
 export type LeaveRequest = Tables<'leave_requests'>;
 export type Notification = Tables<'notifications'>;
 export type Organization = Tables<'organizations'>;

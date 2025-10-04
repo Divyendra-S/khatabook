@@ -98,7 +98,8 @@ export const useAllLeaveRequests = (
   return useQuery({
     queryKey: leaveKeys.hrAll(filters),
     queryFn: () => leaveQueries.getAllLeaveRequests(filters),
-    staleTime: 1000 * 60 * 5,
+    staleTime: 0, // Always refetch on invalidation
+    refetchOnWindowFocus: true,
     ...options,
   });
 };

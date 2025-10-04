@@ -106,7 +106,7 @@ export default function HRLeaveScreen() {
             <View>
               <Text style={styles.leaveTypeTitle}>{item.leave_type}</Text>
               <Text style={styles.cardSubtext}>
-                Employee: {item.user_id.substring(0, 8)}
+                {(item as any).users?.full_name || 'Unknown Employee'}
               </Text>
             </View>
           </View>

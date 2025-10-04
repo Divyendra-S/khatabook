@@ -40,14 +40,26 @@ export const useUpdateSalaryStatus = (
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ recordId, status, approvedBy }) => 
+    mutationFn: ({ recordId, status, approvedBy }) =>
       salaryMutations.updateSalaryStatus(recordId, status, approvedBy),
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: salaryKeys.list(data.user_id) });
-      queryClient.invalidateQueries({ queryKey: salaryKeys.latest(data.user_id) });
-      queryClient.invalidateQueries({ queryKey: salaryKeys.hrAll() });
-      queryClient.invalidateQueries({ queryKey: salaryKeys.hrPending() });
+    onSuccess: async (data, variables, context) => {
+      // Invalidate and refetch ALL salary queries immediately
+      await queryClient.invalidateQueries({
+        queryKey: salaryKeys.all,
+        refetchType: 'all'
+      });
+
+      // Force refetch all active salary queries
+      await queryClient.refetchQueries({
+        queryKey: salaryKeys.all,
+        type: 'active'
+      });
+
+      // Call user's onSuccess if provided
+      options?.onSuccess?.(data, variables, context);
     },
-    ...options,
+    onError: options?.onError,
+    onMutate: options?.onMutate,
+    onSettled: options?.onSettled,
   });
 };
