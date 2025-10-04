@@ -1,5 +1,6 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, StatusBar } from 'react-native';
 import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { useAuth } from '@/hooks/auth/useAuth';
 import { useTodayAttendance, useMonthlyAttendanceSummary } from '@/hooks/queries/useAttendance';
 import { useLatestSalary } from '@/hooks/queries/useSalary';
@@ -9,6 +10,7 @@ import { formatCurrency } from '@/lib/utils/salary.utils';
 import { formatHours } from '@/lib/utils/attendance.utils';
 
 export default function EmployeeDashboard() {
+  const router = useRouter();
   const { user } = useAuth();
   const userId = user?.id || '';
 
@@ -40,26 +42,26 @@ export default function EmployeeDashboard() {
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#6366F1" />
 
+      {/* Fixed Header */}
+      <View style={styles.header}>
+        <View style={styles.headerTop}>
+          <View style={styles.headerLeft}>
+            <Text style={styles.greeting}>Hello, {user?.full_name?.split(' ')[0]}</Text>
+            <Text style={styles.date}>{formatDate(new Date())}</Text>
+          </View>
+          <TouchableOpacity style={styles.avatar} onPress={() => router.push('/profile')}>
+            <Text style={styles.avatarText}>
+              {user?.full_name?.charAt(0).toUpperCase()}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
       <ScrollView
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.headerTop}>
-            <View style={styles.headerLeft}>
-              <Text style={styles.greeting}>Hello, {user?.full_name?.split(' ')[0]}</Text>
-              <Text style={styles.date}>{formatDate(new Date())}</Text>
-            </View>
-            <TouchableOpacity style={styles.avatar}>
-              <Text style={styles.avatarText}>
-                {user?.full_name?.charAt(0).toUpperCase()}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
         {/* Content Cards */}
         <View style={styles.content}>
           {/* Attendance Card */}
