@@ -1,4 +1,5 @@
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import { MaterialCommunityIcons, Feather } from '@expo/vector-icons';
 import { useHRAllSalaries } from '@/hooks/queries/useSalary';
 import { useUpdateSalaryStatus } from '@/hooks/mutations/useSalaryMutations';
 import { useAuth } from '@/hooks/auth/useAuth';
@@ -56,102 +57,159 @@ export default function HRSalaryScreen() {
     );
   };
 
-  const renderSalaryItem = ({ item }: { item: SalaryRecord }) => (
-    <View style={styles.card}>
-      <View style={styles.cardHeader}>
-        <View style={styles.userInfo}>
-          <Text style={styles.userName}>Employee ID: {item.user_id}</Text>
-          <Text style={styles.monthYear}>{item.month_year}</Text>
-        </View>
-        <View style={[styles.statusBadge, styles[`status${item.status}`]]}>
-          <Text style={styles.statusText}>{item.status}</Text>
-        </View>
-      </View>
+  const renderSalaryItem = ({ item }: { item: SalaryRecord }) => {
+    const statusConfig = {
+      paid: { bg: '#DCFCE7', color: '#10B981', icon: 'check-circle' },
+      approved: { bg: '#DBEAFE', color: '#3B82F6', icon: 'shield-check' },
+      pending: { bg: '#FEF3C7', color: '#F59E0B', icon: 'clock-outline' },
+      draft: { bg: '#F1F5F9', color: '#64748B', icon: 'file-document-outline' },
+    };
+    const config = statusConfig[item.status as keyof typeof statusConfig] || statusConfig.draft;
 
-      <View style={styles.amountContainer}>
-        <Text style={styles.totalAmount}>{formatCurrency(item.total_salary)}</Text>
-      </View>
-
-      <View style={styles.detailsContainer}>
-        <View style={styles.detailRow}>
-          <Text style={styles.detailLabel}>Base Salary</Text>
-          <Text style={styles.detailValue}>{formatCurrency(item.base_salary)}</Text>
-        </View>
-
-        {item.allowances > 0 && (
-          <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>Allowances</Text>
-            <Text style={[styles.detailValue, styles.positive]}>
-              +{formatCurrency(item.allowances)}
-            </Text>
+    return (
+      <View style={styles.card}>
+        <View style={styles.cardHeader}>
+          <View style={styles.cardHeaderLeft}>
+            <View style={[styles.iconContainer, { backgroundColor: config.bg }]}>
+              <MaterialCommunityIcons name={config.icon as any} size={24} color={config.color} />
+            </View>
+            <View>
+              <Text style={styles.monthYear}>{item.month_year}</Text>
+              <Text style={styles.cardSubtext}>
+                Employee ID: {item.user_id.substring(0, 8)}
+              </Text>
+            </View>
           </View>
-        )}
-
-        {item.bonus > 0 && (
-          <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>Bonus</Text>
-            <Text style={[styles.detailValue, styles.positive]}>
-              +{formatCurrency(item.bonus)}
-            </Text>
+          <View style={[styles.statusBadge, { backgroundColor: config.bg }]}>
+            <Text style={[styles.statusText, { color: config.color }]}>{item.status}</Text>
           </View>
-        )}
-
-        {item.deductions > 0 && (
-          <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>Deductions</Text>
-            <Text style={[styles.detailValue, styles.negative]}>
-              -{formatCurrency(item.deductions)}
-            </Text>
-          </View>
-        )}
-
-        <View style={styles.divider} />
-
-        <View style={styles.detailRow}>
-          <Text style={styles.detailLabel}>Days Worked</Text>
-          <Text style={styles.detailValue}>{item.days_worked}</Text>
         </View>
-      </View>
 
-      {item.status === 'pending' && (
-        <View style={styles.actions}>
+        <View style={styles.amountContainer}>
+          <Text style={styles.amountLabel}>Total Amount</Text>
+          <Text style={styles.totalAmount}>{formatCurrency(item.total_salary)}</Text>
+        </View>
+
+        <View style={styles.detailsContainer}>
+          <View style={styles.detailRow}>
+            <View style={styles.detailRowLeft}>
+              <MaterialCommunityIcons name="cash" size={18} color="#64748B" />
+              <Text style={styles.detailLabel}>Base Salary</Text>
+            </View>
+            <Text style={styles.detailValue}>{formatCurrency(item.base_salary)}</Text>
+          </View>
+
+          {item.allowances > 0 && (
+            <>
+              <View style={styles.detailDivider} />
+              <View style={styles.detailRow}>
+                <View style={styles.detailRowLeft}>
+                  <MaterialCommunityIcons name="gift-outline" size={18} color="#64748B" />
+                  <Text style={styles.detailLabel}>Allowances</Text>
+                </View>
+                <Text style={[styles.detailValue, styles.positive]}>
+                  +{formatCurrency(item.allowances)}
+                </Text>
+              </View>
+            </>
+          )}
+
+          {item.bonus > 0 && (
+            <>
+              <View style={styles.detailDivider} />
+              <View style={styles.detailRow}>
+                <View style={styles.detailRowLeft}>
+                  <MaterialCommunityIcons name="star-outline" size={18} color="#64748B" />
+                  <Text style={styles.detailLabel}>Bonus</Text>
+                </View>
+                <Text style={[styles.detailValue, styles.positive]}>
+                  +{formatCurrency(item.bonus)}
+                </Text>
+              </View>
+            </>
+          )}
+
+          {item.deductions > 0 && (
+            <>
+              <View style={styles.detailDivider} />
+              <View style={styles.detailRow}>
+                <View style={styles.detailRowLeft}>
+                  <MaterialCommunityIcons name="minus-circle-outline" size={18} color="#64748B" />
+                  <Text style={styles.detailLabel}>Deductions</Text>
+                </View>
+                <Text style={[styles.detailValue, styles.negative]}>
+                  -{formatCurrency(item.deductions)}
+                </Text>
+              </View>
+            </>
+          )}
+
+          <View style={styles.detailDivider} />
+
+          <View style={styles.detailRow}>
+            <View style={styles.detailRowLeft}>
+              <MaterialCommunityIcons name="calendar-range" size={18} color="#64748B" />
+              <Text style={styles.detailLabel}>Days Worked</Text>
+            </View>
+            <Text style={styles.detailValue}>{item.days_worked} days</Text>
+          </View>
+        </View>
+
+        {item.status === 'pending' && (
           <TouchableOpacity
-            style={[styles.actionButton, styles.approveButton]}
+            style={styles.approveButton}
             onPress={() => handleApprove(item.id)}
             disabled={updateStatusMutation.isPending}
+            activeOpacity={0.7}
           >
-            <Text style={styles.actionButtonText}>Approve</Text>
+            {updateStatusMutation.isPending ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <>
+                <MaterialCommunityIcons name="check-circle" size={20} color="#FFFFFF" />
+                <Text style={styles.approveButtonText}>Approve</Text>
+              </>
+            )}
           </TouchableOpacity>
-        </View>
-      )}
+        )}
 
-      {item.status === 'approved' && (
-        <View style={styles.actions}>
+        {item.status === 'approved' && (
           <TouchableOpacity
-            style={[styles.actionButton, styles.paidButton]}
+            style={styles.paidButton}
             onPress={() => handleMarkPaid(item.id)}
             disabled={updateStatusMutation.isPending}
+            activeOpacity={0.7}
           >
-            <Text style={styles.actionButtonText}>Mark as Paid</Text>
+            {updateStatusMutation.isPending ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <>
+                <MaterialCommunityIcons name="cash-check" size={20} color="#FFFFFF" />
+                <Text style={styles.paidButtonText}>Mark as Paid</Text>
+              </>
+            )}
           </TouchableOpacity>
-        </View>
-      )}
+        )}
 
-      {item.status === 'paid' && item.paid_date && (
-        <View style={styles.paidInfo}>
-          <Text style={styles.paidText}>
-            Paid on {formatDate(new Date(item.paid_date))}
-          </Text>
-        </View>
-      )}
-    </View>
-  );
+        {item.status === 'paid' && item.paid_date && (
+          <View style={styles.paidInfo}>
+            <View style={styles.paidInfoHeader}>
+              <MaterialCommunityIcons name="calendar-check" size={18} color="#10B981" />
+              <Text style={styles.paidLabel}>Paid On</Text>
+            </View>
+            <Text style={styles.paidText}>{formatDate(new Date(item.paid_date))}</Text>
+          </View>
+        )}
+      </View>
+    );
+  };
 
   return (
     <View style={styles.container}>
+
       {isLoading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#007AFF" />
+          <ActivityIndicator size="large" color="#6366F1" />
         </View>
       ) : salaries && salaries.length > 0 ? (
         <FlatList
@@ -159,10 +217,13 @@ export default function HRSalaryScreen() {
           renderItem={renderSalaryItem}
           keyExtractor={item => item.id}
           contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
         />
       ) : (
         <View style={styles.emptyContainer}>
+          <MaterialCommunityIcons name="receipt-text-outline" size={64} color="#CBD5E1" />
           <Text style={styles.emptyText}>No salary records available</Text>
+          <Text style={styles.emptySubtext}>Salary records will appear here</Text>
         </View>
       )}
     </View>
@@ -172,57 +233,57 @@ export default function HRSalaryScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#F8FAFC',
   },
   listContent: {
-    padding: 16,
+    padding: 20,
+    paddingBottom: 32,
   },
   card: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
     padding: 20,
     marginBottom: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
     elevation: 3,
   },
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 20,
   },
-  userInfo: {
+  cardHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
     flex: 1,
   },
-  userName: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 4,
+  iconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   monthYear: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1a1a1a',
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  cardSubtext: {
+    fontSize: 12,
+    color: '#64748B',
+    fontWeight: '500',
+    marginTop: 2,
   },
   statusBadge: {
     paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  statusdraft: {
-    backgroundColor: '#f0f0f0',
-  },
-  statuspending: {
-    backgroundColor: '#FFF3CD',
-  },
-  statusapproved: {
-    backgroundColor: '#D4EDDA',
-  },
-  statuspaid: {
-    backgroundColor: '#D1ECF1',
+    paddingVertical: 6,
+    borderRadius: 20,
   },
   statusText: {
     fontSize: 12,
@@ -230,76 +291,128 @@ const styles = StyleSheet.create({
     textTransform: 'capitalize',
   },
   amountContainer: {
+    backgroundColor: '#F0FDF4',
+    padding: 24,
+    borderRadius: 16,
     alignItems: 'center',
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+    marginBottom: 20,
+  },
+  amountLabel: {
+    fontSize: 12,
+    color: '#64748B',
+    fontWeight: '600',
+    marginBottom: 8,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   totalAmount: {
     fontSize: 32,
-    fontWeight: 'bold',
-    color: '#34C759',
+    fontWeight: '700',
+    color: '#10B981',
   },
   detailsContainer: {
-    marginTop: 16,
+    gap: 0,
   },
   detailRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 12,
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  detailRowLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   detailLabel: {
     fontSize: 14,
-    color: '#666',
+    color: '#64748B',
+    fontWeight: '600',
   },
   detailValue: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1a1a1a',
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#0F172A',
   },
   positive: {
-    color: '#34C759',
+    color: '#10B981',
   },
   negative: {
-    color: '#FF3B30',
+    color: '#EF4444',
   },
-  divider: {
+  detailDivider: {
     height: 1,
-    backgroundColor: '#f0f0f0',
-    marginVertical: 8,
-  },
-  actions: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 16,
-  },
-  actionButton: {
-    flex: 1,
-    padding: 12,
-    borderRadius: 8,
-    alignItems: 'center',
+    backgroundColor: '#F1F5F9',
   },
   approveButton: {
-    backgroundColor: '#34C759',
+    backgroundColor: '#10B981',
+    flexDirection: 'row',
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 16,
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  approveButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
   },
   paidButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: '#6366F1',
+    flexDirection: 'row',
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 16,
+    shadowColor: '#6366F1',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
   },
-  actionButtonText: {
-    color: '#fff',
-    fontSize: 14,
+  paidButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
     fontWeight: '600',
   },
   paidInfo: {
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#f0f0f0',
+    marginTop: 16,
+    padding: 16,
+    backgroundColor: '#F0FDF4',
+    borderRadius: 12,
+    borderLeftWidth: 3,
+    borderLeftColor: '#10B981',
+  },
+  paidInfoHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  paidLabel: {
+    fontSize: 13,
+    color: '#10B981',
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   paidText: {
-    fontSize: 14,
-    color: '#34C759',
-    textAlign: 'center',
+    fontSize: 15,
+    color: '#0F172A',
+    fontWeight: '700',
   },
   loadingContainer: {
     flex: 1,
@@ -310,11 +423,18 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 32,
+    padding: 48,
+    gap: 16,
   },
   emptyText: {
     fontSize: 16,
-    color: '#999',
+    fontWeight: '600',
+    color: '#64748B',
+    textAlign: 'center',
+  },
+  emptySubtext: {
+    fontSize: 14,
+    color: '#94A3B8',
     textAlign: 'center',
   },
 });

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, Alert, ScrollView } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useSignUp } from '@/hooks/mutations/useAuthMutations';
 
@@ -11,6 +12,7 @@ export default function SignupScreen() {
     fullName: '',
     employeeId: '',
     phone: '',
+    role: 'employee' as 'employee' | 'hr',
   });
 
   const signUpMutation = useSignUp({
@@ -21,8 +23,17 @@ export default function SignupScreen() {
         [{ text: 'OK', onPress: () => router.replace('/auth/login') }]
       );
     },
-    onError: (error) => {
-      Alert.alert('Signup Failed', error.message);
+    onError: (error: any) => {
+      console.error('===== SIGNUP ERROR IN UI =====');
+      console.error('Error:', error);
+      console.error('Error message:', error?.message);
+      console.error('Error details:', JSON.stringify(error, null, 2));
+      console.error('==============================');
+
+      const errorMessage = error?.message || 'An unknown error occurred';
+      const errorDetails = error?.status ? `\n\nStatus: ${error.status}` : '';
+
+      Alert.alert('Signup Failed', errorMessage + errorDetails);
     },
   });
 
@@ -48,6 +59,7 @@ export default function SignupScreen() {
       fullName: formData.fullName,
       employeeId: formData.employeeId,
       phone: formData.phone || undefined,
+      role: formData.role,
     });
   };
 
@@ -66,6 +78,68 @@ export default function SignupScreen() {
           <Text style={styles.subtitle}>Join our team</Text>
 
           <View style={styles.form}>
+            {/* Role Selection */}
+            <View style={styles.roleSection}>
+              <Text style={styles.roleSectionTitle}>Select Role</Text>
+              <View style={styles.roleButtons}>
+                <TouchableOpacity
+                  style={[
+                    styles.roleButton,
+                    formData.role === 'employee' && styles.roleButtonActive,
+                  ]}
+                  onPress={() => setFormData(prev => ({ ...prev, role: 'employee' }))}
+                  disabled={signUpMutation.isPending}
+                >
+                  <MaterialCommunityIcons
+                    name="account"
+                    size={32}
+                    color={formData.role === 'employee' ? '#6366F1' : '#94A3B8'}
+                  />
+                  <Text
+                    style={[
+                      styles.roleButtonText,
+                      formData.role === 'employee' && styles.roleButtonTextActive,
+                    ]}
+                  >
+                    Employee
+                  </Text>
+                  {formData.role === 'employee' && (
+                    <View style={styles.roleCheckmark}>
+                      <MaterialCommunityIcons name="check-circle" size={20} color="#6366F1" />
+                    </View>
+                  )}
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.roleButton,
+                    formData.role === 'hr' && styles.roleButtonActive,
+                  ]}
+                  onPress={() => setFormData(prev => ({ ...prev, role: 'hr' }))}
+                  disabled={signUpMutation.isPending}
+                >
+                  <MaterialCommunityIcons
+                    name="shield-account"
+                    size={32}
+                    color={formData.role === 'hr' ? '#6366F1' : '#94A3B8'}
+                  />
+                  <Text
+                    style={[
+                      styles.roleButtonText,
+                      formData.role === 'hr' && styles.roleButtonTextActive,
+                    ]}
+                  >
+                    HR / Admin
+                  </Text>
+                  {formData.role === 'hr' && (
+                    <View style={styles.roleCheckmark}>
+                      <MaterialCommunityIcons name="check-circle" size={20} color="#6366F1" />
+                    </View>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+
             <TextInput
               style={styles.input}
               placeholder="Full Name *"
@@ -146,7 +220,7 @@ export default function SignupScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#F8FAFC',
   },
   scrollContent: {
     flexGrow: 1,
@@ -160,41 +234,91 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 32,
-    fontWeight: 'bold',
+    fontWeight: '700',
     textAlign: 'center',
     marginBottom: 8,
-    color: '#1a1a1a',
+    color: '#0F172A',
   },
   subtitle: {
     fontSize: 16,
     textAlign: 'center',
     marginBottom: 32,
-    color: '#666',
+    color: '#64748B',
   },
   form: {
     width: '100%',
   },
+  roleSection: {
+    marginBottom: 24,
+  },
+  roleSectionTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#0F172A',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  roleButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  roleButton: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 2,
+    borderColor: '#E2E8F0',
+    borderRadius: 16,
+    padding: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    position: 'relative',
+  },
+  roleButtonActive: {
+    borderColor: '#6366F1',
+    backgroundColor: '#EEF2FF',
+  },
+  roleButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#64748B',
+    textAlign: 'center',
+  },
+  roleButtonTextActive: {
+    color: '#6366F1',
+  },
+  roleCheckmark: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+  },
   input: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
     padding: 16,
     marginBottom: 16,
     fontSize: 16,
-    backgroundColor: '#f9f9f9',
+    backgroundColor: '#FFFFFF',
+    color: '#0F172A',
   },
   button: {
-    backgroundColor: '#007AFF',
+    backgroundColor: '#6366F1',
     padding: 16,
-    borderRadius: 8,
+    borderRadius: 12,
     alignItems: 'center',
     marginTop: 8,
+    shadowColor: '#6366F1',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
   },
   buttonDisabled: {
     opacity: 0.6,
   },
   buttonText: {
-    color: '#fff',
+    color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
   },
@@ -204,7 +328,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   linkText: {
-    color: '#007AFF',
+    color: '#6366F1',
     fontSize: 14,
+    fontWeight: '500',
   },
 });

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
 import { useHRAllAttendanceRecords } from '@/hooks/queries/useAttendance';
 import { formatDate, formatTime, getFirstDayOfMonth, getLastDayOfMonth } from '@/lib/utils/date.utils';
 import { formatHours, getAttendanceStatus } from '@/lib/utils/attendance.utils';
@@ -17,47 +18,70 @@ export default function HRAttendanceScreen() {
 
   const renderAttendanceItem = ({ item }: { item: AttendanceWithUser }) => {
     const status = getAttendanceStatus(item);
+    const statusColors = {
+      Present: { bg: '#DCFCE7', color: '#10B981', icon: 'checkmark-circle' },
+      Incomplete: { bg: '#FEF3C7', color: '#F59E0B', icon: 'time-outline' },
+      Absent: { bg: '#FEE2E2', color: '#EF4444', icon: 'close-circle' },
+    };
+    const statusConfig = statusColors[status as keyof typeof statusColors] || statusColors.Present;
 
     return (
       <View style={styles.card}>
         <View style={styles.cardHeader}>
-          <View style={styles.employeeInfo}>
-            <Text style={styles.employeeName}>{item.user?.full_name || 'Unknown'}</Text>
-            <Text style={styles.employeeId}>ID: {item.user?.employee_id}</Text>
+          <View style={styles.cardHeaderLeft}>
+            <View style={[styles.dateIconWrapper, { backgroundColor: statusConfig.bg }]}>
+              <Ionicons name={statusConfig.icon as any} size={24} color={statusConfig.color} />
+            </View>
+            <View>
+              <Text style={styles.employeeName}>{item.user?.full_name || 'Unknown'}</Text>
+              <Text style={styles.employeeId}>ID: {item.user?.employee_id}</Text>
+            </View>
           </View>
-          <View style={[styles.statusBadge, styles[`status${status}`]]}>
-            <Text style={styles.statusText}>{status}</Text>
+          <View style={[styles.statusBadge, { backgroundColor: statusConfig.bg }]}>
+            <Text style={[styles.statusText, { color: statusConfig.color }]}>{status}</Text>
           </View>
         </View>
 
         <Text style={styles.date}>{formatDate(new Date(item.date))}</Text>
 
         <View style={styles.timeContainer}>
-          <View style={styles.timeItem}>
-            <Text style={styles.timeLabel}>Check-in</Text>
-            <Text style={styles.timeValue}>
-              {item.check_in_time ? formatTime(new Date(item.check_in_time)) : '-'}
-            </Text>
+          <View style={styles.timeCard}>
+            <Ionicons name="log-in-outline" size={20} color="#10B981" />
+            <View style={styles.timeCardContent}>
+              <Text style={styles.timeLabel}>Check-in</Text>
+              <Text style={styles.timeValue}>
+                {item.check_in_time ? formatTime(new Date(item.check_in_time)) : '--:--'}
+              </Text>
+            </View>
           </View>
 
-          <View style={styles.timeItem}>
-            <Text style={styles.timeLabel}>Check-out</Text>
-            <Text style={styles.timeValue}>
-              {item.check_out_time ? formatTime(new Date(item.check_out_time)) : '-'}
-            </Text>
+          <View style={styles.timeCard}>
+            <Ionicons name="log-out-outline" size={20} color="#EF4444" />
+            <View style={styles.timeCardContent}>
+              <Text style={styles.timeLabel}>Check-out</Text>
+              <Text style={styles.timeValue}>
+                {item.check_out_time ? formatTime(new Date(item.check_out_time)) : '--:--'}
+              </Text>
+            </View>
           </View>
 
-          <View style={styles.timeItem}>
-            <Text style={styles.timeLabel}>Hours</Text>
-            <Text style={styles.timeValue}>
-              {item.total_hours ? formatHours(item.total_hours) : '-'}
-            </Text>
+          <View style={styles.timeCard}>
+            <Ionicons name="timer-outline" size={20} color="#6366F1" />
+            <View style={styles.timeCardContent}>
+              <Text style={styles.timeLabel}>Total Hours</Text>
+              <Text style={[styles.timeValue, styles.hoursValue]}>
+                {item.total_hours ? formatHours(item.total_hours) : '--'}
+              </Text>
+            </View>
           </View>
         </View>
 
         {item.notes && (
           <View style={styles.notesContainer}>
-            <Text style={styles.notesLabel}>Notes:</Text>
+            <View style={styles.notesHeader}>
+              <Feather name="file-text" size={16} color="#64748B" />
+              <Text style={styles.notesLabel}>Notes</Text>
+            </View>
             <Text style={styles.notesText}>{item.notes}</Text>
           </View>
         )}
@@ -82,29 +106,40 @@ export default function HRAttendanceScreen() {
 
   return (
     <View style={styles.container}>
+
       <View style={styles.monthSelector}>
-        <TouchableOpacity onPress={previousMonth} style={styles.monthButton}>
-          <Text style={styles.monthButtonText}>←</Text>
+        <TouchableOpacity
+          onPress={previousMonth}
+          style={styles.monthButton}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="chevron-back" size={24} color="#6366F1" />
         </TouchableOpacity>
 
-        <Text style={styles.monthText}>
-          {selectedMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-        </Text>
+        <View style={styles.monthTextContainer}>
+          <MaterialCommunityIcons name="calendar-month" size={20} color="#6366F1" />
+          <Text style={styles.monthText}>
+            {selectedMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+          </Text>
+        </View>
 
         <TouchableOpacity
           onPress={nextMonth}
           style={[styles.monthButton, isCurrentMonth && styles.monthButtonDisabled]}
           disabled={isCurrentMonth}
+          activeOpacity={0.7}
         >
-          <Text style={[styles.monthButtonText, isCurrentMonth && styles.monthButtonTextDisabled]}>
-            →
-          </Text>
+          <Ionicons
+            name="chevron-forward"
+            size={24}
+            color={isCurrentMonth ? '#CBD5E1' : '#6366F1'}
+          />
         </TouchableOpacity>
       </View>
 
       {isLoading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#007AFF" />
+          <ActivityIndicator size="large" color="#6366F1" />
         </View>
       ) : records && records.length > 0 ? (
         <FlatList
@@ -112,10 +147,13 @@ export default function HRAttendanceScreen() {
           renderItem={renderAttendanceItem}
           keyExtractor={item => item.id}
           contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
         />
       ) : (
         <View style={styles.emptyContainer}>
+          <Feather name="calendar" size={64} color="#CBD5E1" />
           <Text style={styles.emptyText}>No attendance records for this month</Text>
+          <Text style={styles.emptySubtext}>Records will appear here once employees check in</Text>
         </View>
       )}
     </View>
@@ -125,86 +163,98 @@ export default function HRAttendanceScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#F8FAFC',
   },
   monthSelector: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#fff',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
-  },
-  monthButton: {
-    padding: 8,
-    paddingHorizontal: 16,
-  },
-  monthButtonDisabled: {
-    opacity: 0.3,
-  },
-  monthButtonText: {
-    fontSize: 24,
-    color: '#007AFF',
-  },
-  monthButtonTextDisabled: {
-    color: '#999',
-  },
-  monthText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1a1a1a',
-  },
-  listContent: {
-    padding: 16,
-  },
-  card: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  monthButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: '#EEF2FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  monthButtonDisabled: {
+    backgroundColor: '#F1F5F9',
+    opacity: 0.5,
+  },
+  monthTextContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  monthText: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  listContent: {
+    padding: 20,
+    paddingBottom: 32,
+  },
+  card: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 20,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
     elevation: 3,
   },
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 12,
   },
-  employeeInfo: {
+  cardHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
     flex: 1,
+  },
+  dateIconWrapper: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   employeeName: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#1a1a1a',
+    fontWeight: '700',
+    color: '#0F172A',
   },
   employeeId: {
     fontSize: 12,
-    color: '#666',
+    color: '#64748B',
+    fontWeight: '500',
+    marginTop: 2,
   },
   date: {
     fontSize: 14,
-    color: '#666',
-    marginBottom: 12,
+    color: '#64748B',
+    fontWeight: '500',
+    marginBottom: 16,
   },
   statusBadge: {
     paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  statusPresent: {
-    backgroundColor: '#D1F2EB',
-  },
-  statusIncomplete: {
-    backgroundColor: '#FFF3CD',
-  },
-  statusAbsent: {
-    backgroundColor: '#F8D7DA',
+    paddingVertical: 6,
+    borderRadius: 20,
   },
   statusText: {
     fontSize: 12,
@@ -212,36 +262,56 @@ const styles = StyleSheet.create({
     textTransform: 'capitalize',
   },
   timeContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    gap: 12,
   },
-  timeItem: {
+  timeCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    padding: 16,
+    borderRadius: 12,
+    gap: 12,
+  },
+  timeCardContent: {
     flex: 1,
   },
   timeLabel: {
-    fontSize: 12,
-    color: '#666',
+    fontSize: 13,
+    color: '#64748B',
+    fontWeight: '500',
     marginBottom: 4,
   },
   timeValue: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1a1a1a',
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  hoursValue: {
+    color: '#6366F1',
   },
   notesContainer: {
-    marginTop: 12,
-    paddingTop: 12,
+    marginTop: 16,
+    paddingTop: 16,
     borderTopWidth: 1,
-    borderTopColor: '#f0f0f0',
+    borderTopColor: '#F1F5F9',
+  },
+  notesHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 8,
   },
   notesLabel: {
-    fontSize: 12,
-    color: '#666',
-    marginBottom: 4,
+    fontSize: 13,
+    color: '#64748B',
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   notesText: {
     fontSize: 14,
-    color: '#1a1a1a',
+    color: '#334155',
+    lineHeight: 20,
   },
   loadingContainer: {
     flex: 1,
@@ -252,11 +322,18 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 32,
+    padding: 48,
+    gap: 16,
   },
   emptyText: {
     fontSize: 16,
-    color: '#999',
+    fontWeight: '600',
+    color: '#64748B',
+    textAlign: 'center',
+  },
+  emptySubtext: {
+    fontSize: 14,
+    color: '#94A3B8',
     textAlign: 'center',
   },
 });

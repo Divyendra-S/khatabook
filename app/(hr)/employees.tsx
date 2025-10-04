@@ -1,5 +1,6 @@
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
+import { MaterialCommunityIcons, Feather } from '@expo/vector-icons';
 import { useAllUsers } from '@/hooks/queries/useUser';
 import { User } from '@/lib/types';
 
@@ -10,6 +11,7 @@ export default function EmployeesScreen() {
     <TouchableOpacity
       style={styles.card}
       onPress={() => router.push(`/(hr)/employee/${item.id}`)}
+      activeOpacity={0.7}
     >
       <View style={styles.cardHeader}>
         <View style={styles.avatar}>
@@ -19,20 +21,32 @@ export default function EmployeesScreen() {
           <Text style={styles.employeeName}>{item.full_name}</Text>
           <Text style={styles.employeeId}>ID: {item.employee_id}</Text>
           {item.department && (
-            <Text style={styles.employeeDept}>{item.department}</Text>
+            <View style={styles.departmentRow}>
+              <MaterialCommunityIcons name="office-building" size={14} color="#64748B" />
+              <Text style={styles.employeeDept}>{item.department}</Text>
+            </View>
           )}
         </View>
         <View style={[styles.statusBadge, item.is_active ? styles.statusActive : styles.statusInactive]}>
+          <View style={[styles.statusDot, item.is_active ? styles.statusDotActive : styles.statusDotInactive]} />
           <Text style={styles.statusText}>{item.is_active ? 'Active' : 'Inactive'}</Text>
         </View>
       </View>
 
       <View style={styles.cardFooter}>
         <View style={styles.roleBadge}>
+          <MaterialCommunityIcons
+            name={item.role === 'hr' || item.role === 'admin' ? 'shield-account' : 'account'}
+            size={14}
+            color="#6366F1"
+          />
           <Text style={styles.roleText}>{item.role}</Text>
         </View>
         {item.designation && (
-          <Text style={styles.designation}>{item.designation}</Text>
+          <View style={styles.designationWrapper}>
+            <MaterialCommunityIcons name="account-tie" size={14} color="#64748B" />
+            <Text style={styles.designation}>{item.designation}</Text>
+          </View>
         )}
       </View>
     </TouchableOpacity>
@@ -42,7 +56,7 @@ export default function EmployeesScreen() {
     <View style={styles.container}>
       {isLoading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#007AFF" />
+          <ActivityIndicator size="large" color="#6366F1" />
         </View>
       ) : users && users.length > 0 ? (
         <FlatList
@@ -50,10 +64,13 @@ export default function EmployeesScreen() {
           renderItem={renderEmployeeItem}
           keyExtractor={item => item.id}
           contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
         />
       ) : (
         <View style={styles.emptyContainer}>
+          <Feather name="users" size={64} color="#CBD5E1" />
           <Text style={styles.emptyText}>No employees found</Text>
+          <Text style={styles.emptySubtext}>Employees will appear here</Text>
         </View>
       )}
     </View>
@@ -63,94 +80,135 @@ export default function EmployeesScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#F8FAFC',
   },
   listContent: {
-    padding: 16,
+    padding: 20,
+    paddingBottom: 32,
   },
   card: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 20,
+    marginBottom: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
     elevation: 3,
   },
   cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 16,
   },
   avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#007AFF',
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#6366F1',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginRight: 16,
+    shadowColor: '#6366F1',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 2,
   },
   avatarText: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#fff',
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
   employeeInfo: {
     flex: 1,
+    gap: 4,
   },
   employeeName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1a1a1a',
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#0F172A',
     marginBottom: 2,
   },
   employeeId: {
-    fontSize: 12,
-    color: '#666',
-    marginBottom: 2,
+    fontSize: 13,
+    color: '#64748B',
+    fontWeight: '500',
+  },
+  departmentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 2,
   },
   employeeDept: {
     fontSize: 12,
-    color: '#007AFF',
+    color: '#64748B',
+    fontWeight: '500',
   },
   statusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    gap: 6,
   },
   statusActive: {
-    backgroundColor: '#D1F2EB',
+    backgroundColor: '#DCFCE7',
   },
   statusInactive: {
-    backgroundColor: '#F8D7DA',
+    backgroundColor: '#FEE2E2',
+  },
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  statusDotActive: {
+    backgroundColor: '#10B981',
+  },
+  statusDotInactive: {
+    backgroundColor: '#EF4444',
   },
   statusText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: '600',
+    color: '#0F172A',
   },
   cardFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
   },
   roleBadge: {
-    backgroundColor: '#007AFF20',
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EEF2FF',
     paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    gap: 6,
   },
   roleText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#007AFF',
-    textTransform: 'capitalize',
+    color: '#6366F1',
+    textTransform: 'uppercase',
+  },
+  designationWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   designation: {
-    fontSize: 12,
-    color: '#666',
+    fontSize: 13,
+    color: '#64748B',
+    fontWeight: '500',
   },
   loadingContainer: {
     flex: 1,
@@ -161,11 +219,18 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 32,
+    padding: 48,
+    gap: 16,
   },
   emptyText: {
     fontSize: 16,
-    color: '#999',
+    fontWeight: '600',
+    color: '#64748B',
+    textAlign: 'center',
+  },
+  emptySubtext: {
+    fontSize: 14,
+    color: '#94A3B8',
     textAlign: 'center',
   },
 });

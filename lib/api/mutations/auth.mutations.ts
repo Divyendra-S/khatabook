@@ -25,7 +25,16 @@ export const authMutations = {
       },
     });
 
-    if (error) throw error;
+    if (error) {
+      // Log complete error details for debugging
+      console.error('===== SIGNUP ERROR DETAILS =====');
+      console.error('Error Message:', error.message);
+      console.error('Error Name:', error.name);
+      console.error('Error Status:', error.status);
+      console.error('Full Error Object:', JSON.stringify(error, null, 2));
+      console.error('================================');
+      throw error;
+    }
     return data;
   },
 
