@@ -1,9 +1,13 @@
-import { View, Text, StyleSheet, TouchableOpacity, Alert, StatusBar, ActivityIndicator, Animated } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, StatusBar, ActivityIndicator, Animated, Platform } from 'react-native';
 import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
 import { useAuth } from '@/hooks/auth/useAuth';
 import { useSignOut } from '@/hooks/mutations/useAuthMutations';
 import { formatDate } from '@/lib/utils/date.utils';
 import { useRef } from 'react';
+
+const HEADER_MAX_HEIGHT = 360;
+const HEADER_MIN_HEIGHT = 110;
+const HEADER_SCROLL_DISTANCE = HEADER_MAX_HEIGHT - HEADER_MIN_HEIGHT;
 
 export default function ProfileScreen() {
   const { user } = useAuth();
@@ -25,27 +29,36 @@ export default function ProfileScreen() {
     );
   };
 
-  const headerHeight = scrollY.interpolate({
-    inputRange: [0, 120],
-    outputRange: [320, 100],
+  // Header collapse animation - slides header up
+  const headerTranslateY = scrollY.interpolate({
+    inputRange: [0, HEADER_SCROLL_DISTANCE],
+    outputRange: [0, -HEADER_SCROLL_DISTANCE],
     extrapolate: 'clamp',
   });
 
+  // Avatar animations
   const avatarScale = scrollY.interpolate({
-    inputRange: [0, 120],
-    outputRange: [1, 0.5],
+    inputRange: [0, HEADER_SCROLL_DISTANCE / 2, HEADER_SCROLL_DISTANCE],
+    outputRange: [1, 0.7, 0.5],
     extrapolate: 'clamp',
   });
 
-  const contentOpacity = scrollY.interpolate({
-    inputRange: [0, 60, 120],
-    outputRange: [1, 0, 0],
+  const avatarTranslateY = scrollY.interpolate({
+    inputRange: [0, HEADER_SCROLL_DISTANCE],
+    outputRange: [0, -40],
     extrapolate: 'clamp',
   });
 
-  const contentHeight = scrollY.interpolate({
-    inputRange: [0, 120],
-    outputRange: [120, 0],
+  // User info fade out
+  const userInfoOpacity = scrollY.interpolate({
+    inputRange: [0, HEADER_SCROLL_DISTANCE / 2],
+    outputRange: [1, 0],
+    extrapolate: 'clamp',
+  });
+
+  const userInfoTranslateY = scrollY.interpolate({
+    inputRange: [0, HEADER_SCROLL_DISTANCE / 2],
+    outputRange: [0, -20],
     extrapolate: 'clamp',
   });
 
@@ -53,11 +66,26 @@ export default function ProfileScreen() {
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#6366F1" />
 
-      <Animated.View style={[styles.header, { height: headerHeight }]}>
-        <Animated.View style={[
-          styles.avatarWrapper,
-          { transform: [{ scale: avatarScale }] }
-        ]}>
+      {/* Fixed header with transform animation */}
+      <Animated.View
+        style={[
+          styles.header,
+          {
+            transform: [{ translateY: headerTranslateY }],
+          },
+        ]}
+      >
+        <Animated.View
+          style={[
+            styles.avatarWrapper,
+            {
+              transform: [
+                { scale: avatarScale },
+                { translateY: avatarTranslateY },
+              ],
+            },
+          ]}
+        >
           <View style={styles.avatar}>
             <Text style={styles.avatarText}>
               {user?.full_name?.charAt(0).toUpperCase()}
@@ -65,38 +93,44 @@ export default function ProfileScreen() {
           </View>
         </Animated.View>
 
-        <Animated.View style={[
-          styles.userInfoWrapper,
-          {
-            height: contentHeight,
-            opacity: contentOpacity
-          }
-        ]}>
+        <Animated.View
+          style={[
+            styles.userInfoWrapper,
+            {
+              opacity: userInfoOpacity,
+              transform: [{ translateY: userInfoTranslateY }],
+            },
+          ]}
+        >
           <Text style={styles.name}>{user?.full_name}</Text>
           <Text style={styles.email}>{user?.email}</Text>
-          <View style={[
-            styles.roleBadge,
-            user?.is_active ? styles.activeRoleBadge : styles.inactiveRoleBadge
-          ]}>
+          <View
+            style={[
+              styles.roleBadge,
+              user?.is_active ? styles.activeRoleBadge : styles.inactiveRoleBadge,
+            ]}
+          >
             <Text style={styles.roleText}>{user?.role || 'employee'}</Text>
           </View>
         </Animated.View>
       </Animated.View>
 
+      {/* Scrollable content */}
       <Animated.ScrollView
         style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, { paddingTop: HEADER_MAX_HEIGHT }]}
         showsVerticalScrollIndicator={false}
         onScroll={Animated.event(
           [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-          { useNativeDriver: false }
+          { useNativeDriver: true }
         )}
         scrollEventThrottle={16}
       >
 
       <View style={styles.content}>
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Personal Information</Text>
+        <View style={styles.contentCard}>
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Personal Information</Text>
 
           <View style={styles.infoCard}>
             <View style={styles.infoRow}>
@@ -219,7 +253,8 @@ export default function ProfileScreen() {
           <Text style={styles.footerSubtext}>Salary Book App</Text>
         </View>
       </View>
-      </Animated.ScrollView>
+    </View>
+    </Animated.ScrollView>
     </View>
   );
 }
@@ -227,23 +262,32 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#6366F1',
+    backgroundColor: '#F8FAFC',
   },
   header: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: HEADER_MAX_HEIGHT,
     backgroundColor: '#6366F1',
-    paddingTop: 60,
+    paddingTop: Platform.OS === 'ios' ? 60 : 50,
+    paddingBottom: 20,
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
+    zIndex: 1000,
     overflow: 'hidden',
   },
   avatarWrapper: {
     alignItems: 'center',
     justifyContent: 'center',
+    marginTop: 24,
+    marginBottom: 4,
   },
   avatar: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+    width: 110,
+    height: 110,
+    borderRadius: 55,
     backgroundColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
@@ -254,15 +298,16 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   avatarText: {
-    fontSize: 40,
+    fontSize: 44,
     fontWeight: '700',
     color: '#6366F1',
   },
   userInfoWrapper: {
     alignItems: 'center',
     justifyContent: 'center',
-    overflow: 'hidden',
-    marginTop: 16,
+    marginTop: 20,
+    paddingHorizontal: 20,
+    paddingBottom: 12,
   },
   name: {
     fontSize: 24,
@@ -296,17 +341,21 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
-    backgroundColor: 'transparent',
   },
   scrollContent: {
-    backgroundColor: '#F8FAFC',
-    borderTopLeftRadius: 32,
-    borderTopRightRadius: 32,
-    paddingTop: 40,
     flexGrow: 1,
+    backgroundColor: 'transparent',
   },
   content: {
     flex: 1,
+  },
+  contentCard: {
+    backgroundColor: '#F8FAFC',
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    paddingTop: 32,
+    minHeight: '100%',
+    marginTop: -20,
   },
   section: {
     paddingHorizontal: 20,
