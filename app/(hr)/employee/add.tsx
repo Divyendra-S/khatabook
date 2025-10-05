@@ -16,8 +16,14 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCreateEmployee } from '@/hooks/mutations/useOrganizationMutations';
 import { useCurrentOrganization } from '@/hooks/queries/useOrganization';
-import { UserRole } from '@/lib/types';
+import { UserRole, WeekDay } from '@/lib/types';
 import DatePicker from '@/components/ui/DatePicker';
+import WorkingDaysSelector from '@/components/employee/WorkingDaysSelector';
+import {
+  DEFAULT_WORKING_DAYS,
+  calculateMonthlyTotalHours,
+  calculateHourlyRate,
+} from '@/lib/utils/workingDays.utils';
 
 export default function AddEmployeeScreen() {
   const insets = useSafeAreaInsets();
@@ -32,7 +38,21 @@ export default function AddEmployeeScreen() {
     department: '',
     designation: '',
     dateOfJoining: new Date().toISOString().split('T')[0],
+    baseSalary: '',
+    workingDays: DEFAULT_WORKING_DAYS as WeekDay[],
+    dailyWorkingHours: '8',
   });
+
+  // Calculate real-time salary metrics
+  const baseSalaryNum = parseFloat(formData.baseSalary) || 0;
+  const dailyHoursNum = parseFloat(formData.dailyWorkingHours) || 0;
+  const monthlyHours = calculateMonthlyTotalHours(
+    formData.workingDays,
+    dailyHoursNum,
+    new Date().getMonth(),
+    new Date().getFullYear()
+  );
+  const hourlyRate = calculateHourlyRate(baseSalaryNum, monthlyHours);
 
   const createEmployeeMutation = useCreateEmployee(organization?.id || '', {
     onSuccess: () => {
@@ -62,7 +82,8 @@ export default function AddEmployeeScreen() {
       Alert.alert('Error', 'Please enter employee ID');
       return;
     }
-    if (!formData.password.trim() || formData.password.length < 6) {
+    // Password is optional - will default to email if not provided
+    if (formData.password.trim() && formData.password.length < 6) {
       Alert.alert('Error', 'Password must be at least 6 characters');
       return;
     }
@@ -74,7 +95,7 @@ export default function AddEmployeeScreen() {
 
     createEmployeeMutation.mutate({
       email: formData.email.trim().toLowerCase(),
-      password: formData.password,
+      password: formData.password.trim() || undefined, // Optional, will default to email in Edge Function
       fullName: formData.fullName.trim(),
       employeeId: formData.employeeId.trim(),
       phone: formData.phone.trim() || undefined,
@@ -82,6 +103,9 @@ export default function AddEmployeeScreen() {
       designation: formData.designation.trim() || undefined,
       role: formData.role,
       dateOfJoining: formData.dateOfJoining,
+      baseSalary: baseSalaryNum || undefined,
+      workingDays: formData.workingDays.length > 0 ? formData.workingDays : undefined,
+      dailyWorkingHours: dailyHoursNum || undefined,
     });
   };
 
@@ -141,14 +165,12 @@ export default function AddEmployeeScreen() {
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>
-              Password <Text style={styles.required}>*</Text>
-            </Text>
+            <Text style={styles.label}>Password (Optional)</Text>
             <View style={styles.inputWrapper}>
               <Ionicons name="lock-closed-outline" size={20} color="#64748B" />
               <TextInput
                 style={styles.input}
-                placeholder="Enter password (min 6 characters)"
+                placeholder="Leave empty to use email as password"
                 value={formData.password}
                 onChangeText={(text) => setFormData({ ...formData, password: text })}
                 secureTextEntry
@@ -156,7 +178,7 @@ export default function AddEmployeeScreen() {
               />
             </View>
             <Text style={styles.helperText}>
-              This password will be used for login
+              If left empty, email will be used as the default password
             </Text>
           </View>
 
@@ -282,6 +304,59 @@ export default function AddEmployeeScreen() {
             label="Date of Joining"
             maximumDate={new Date()}
           />
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Salary Configuration</Text>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Base Salary (Monthly)</Text>
+            <View style={styles.inputWrapper}>
+              <MaterialCommunityIcons name="cash" size={20} color="#64748B" />
+              <TextInput
+                style={styles.input}
+                placeholder="Enter base salary"
+                value={formData.baseSalary}
+                onChangeText={(text) => setFormData({ ...formData, baseSalary: text })}
+                keyboardType="numeric"
+                placeholderTextColor="#94A3B8"
+              />
+            </View>
+          </View>
+
+          <WorkingDaysSelector
+            selectedDays={formData.workingDays}
+            onDaysChange={(days) => setFormData({ ...formData, workingDays: days })}
+            label="Working Days"
+          />
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Daily Working Hours</Text>
+            <View style={styles.inputWrapper}>
+              <MaterialCommunityIcons name="clock-outline" size={20} color="#64748B" />
+              <TextInput
+                style={styles.input}
+                placeholder="Enter daily working hours"
+                value={formData.dailyWorkingHours}
+                onChangeText={(text) => setFormData({ ...formData, dailyWorkingHours: text })}
+                keyboardType="numeric"
+                placeholderTextColor="#94A3B8"
+              />
+            </View>
+          </View>
+
+          {baseSalaryNum > 0 && monthlyHours > 0 && (
+            <View style={styles.calculationCard}>
+              <View style={styles.calculationRow}>
+                <Text style={styles.calculationLabel}>Monthly Total Hours:</Text>
+                <Text style={styles.calculationValue}>{monthlyHours.toFixed(1)}h</Text>
+              </View>
+              <View style={styles.calculationRow}>
+                <Text style={styles.calculationLabel}>Hourly Rate:</Text>
+                <Text style={styles.calculationValue}>₹{hourlyRate.toFixed(2)}/h</Text>
+              </View>
+            </View>
+          )}
         </View>
 
         <TouchableOpacity
@@ -441,5 +516,29 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: '#FFFFFF',
+  },
+  calculationCard: {
+    backgroundColor: '#F0F9FF',
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+  },
+  calculationRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  calculationLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1E40AF',
+  },
+  calculationValue: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1E40AF',
   },
 });

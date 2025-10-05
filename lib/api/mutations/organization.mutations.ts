@@ -7,7 +7,7 @@ export const organizationMutations = {
    */
   createEmployee: async (params: {
     email: string;
-    password: string;
+    password?: string; // Now optional, defaults to email
     fullName: string;
     employeeId: string;
     phone?: string;
@@ -16,12 +16,15 @@ export const organizationMutations = {
     role?: 'employee' | 'hr';
     dateOfJoining?: string;
     organizationId: string;
+    baseSalary?: number;
+    workingDays?: string[];
+    dailyWorkingHours?: number;
   }) => {
     // Call Edge Function which uses service role key securely server-side
     const { data, error } = await supabase.functions.invoke('create-employee', {
       body: {
         email: params.email,
-        password: params.password,
+        password: params.password, // Optional, will default to email in Edge Function
         fullName: params.fullName,
         employeeId: params.employeeId,
         phone: params.phone,
@@ -30,6 +33,9 @@ export const organizationMutations = {
         role: params.role || 'employee',
         dateOfJoining: params.dateOfJoining || new Date().toISOString().split('T')[0],
         organizationId: params.organizationId,
+        baseSalary: params.baseSalary,
+        workingDays: params.workingDays,
+        dailyWorkingHours: params.dailyWorkingHours,
       },
     });
 

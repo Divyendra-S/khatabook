@@ -45,3 +45,42 @@ export const calculatePercentage = (value: number, total: number): number => {
   if (total === 0) return 0;
   return Math.round((value / total) * 100);
 };
+
+/**
+ * Calculate earned salary based on hours worked
+ */
+export const calculateEarnedSalary = (
+  hoursWorked: number,
+  hourlyRate: number
+): number => {
+  return hoursWorked * hourlyRate;
+};
+
+/**
+ * Calculate salary progress percentage
+ */
+export const calculateSalaryProgress = (
+  earnedSalary: number,
+  baseSalary: number
+): number => {
+  if (baseSalary === 0) return 0;
+  return Math.min(Math.round((earnedSalary / baseSalary) * 100), 100);
+};
+
+/**
+ * Calculate hours progress percentage
+ */
+export const calculateHoursProgress = (
+  workedHours: number,
+  expectedHours: number
+): number => {
+  if (expectedHours === 0) return 0;
+  return Math.min(Math.round((workedHours / expectedHours) * 100), 100);
+};
+
+/**
+ * Format hours display (e.g., "8.5h" or "40.0h")
+ */
+export const formatHours = (hours: number, decimals: number = 1): string => {
+  return `${hours.toFixed(decimals)}h`;
+};

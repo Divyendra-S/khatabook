@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, RefreshControl } from 'react-native';
 import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
 import { useHRAllEmployeesAttendance } from '@/hooks/queries/useAttendance';
 import { formatDate, formatTime, formatDateToISO } from '@/lib/utils/date.utils';
@@ -9,13 +9,23 @@ import MarkAttendanceModal from '@/components/attendance/MarkAttendanceModal';
 
 export default function HRAttendanceScreen() {
   const [selectedDate, setSelectedDate] = useState(new Date());
+  const [refreshing, setRefreshing] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<AttendanceRecord | undefined>(undefined);
   const targetDate = formatDateToISO(selectedDate);
 
-  const { data: records, isLoading } = useHRAllEmployeesAttendance({
+  const { data: records, isLoading, refetch } = useHRAllEmployeesAttendance({
     date: targetDate,
   });
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await refetch();
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const handleMarkAttendance = () => {
     setSelectedRecord(undefined);
@@ -56,9 +66,9 @@ export default function HRAttendanceScreen() {
         <Text style={styles.date}>{formatDate(new Date(item.date))}</Text>
 
         <View style={styles.timeContainer}>
-          <View style={styles.timeCard}>
-            <Ionicons name="log-in-outline" size={20} color="#10B981" />
-            <View style={styles.timeCardContent}>
+          <View style={styles.timeItem}>
+            <Ionicons name="log-in-outline" size={18} color="#10B981" />
+            <View>
               <Text style={styles.timeLabel}>Check-in</Text>
               <Text style={styles.timeValue}>
                 {item.check_in_time ? formatTime(new Date(item.check_in_time)) : '--:--'}
@@ -66,9 +76,11 @@ export default function HRAttendanceScreen() {
             </View>
           </View>
 
-          <View style={styles.timeCard}>
-            <Ionicons name="log-out-outline" size={20} color="#EF4444" />
-            <View style={styles.timeCardContent}>
+          <View style={styles.timeDivider} />
+
+          <View style={styles.timeItem}>
+            <Ionicons name="log-out-outline" size={18} color="#EF4444" />
+            <View>
               <Text style={styles.timeLabel}>Check-out</Text>
               <Text style={styles.timeValue}>
                 {item.check_out_time ? formatTime(new Date(item.check_out_time)) : '--:--'}
@@ -76,10 +88,12 @@ export default function HRAttendanceScreen() {
             </View>
           </View>
 
-          <View style={styles.timeCard}>
-            <Ionicons name="timer-outline" size={20} color="#6366F1" />
-            <View style={styles.timeCardContent}>
-              <Text style={styles.timeLabel}>Total Hours</Text>
+          <View style={styles.timeDivider} />
+
+          <View style={styles.timeItem}>
+            <Ionicons name="timer-outline" size={18} color="#6366F1" />
+            <View>
+              <Text style={styles.timeLabel}>Hours</Text>
               <Text style={[styles.timeValue, styles.hoursValue]}>
                 {item.total_hours ? formatHours(item.total_hours) : '--'}
               </Text>
@@ -184,6 +198,14 @@ export default function HRAttendanceScreen() {
           keyExtractor={item => item.id}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={['#6366F1']}
+              tintColor="#6366F1"
+            />
+          }
         />
       ) : (
         <View style={styles.emptyContainer}>
@@ -334,27 +356,33 @@ const styles = StyleSheet.create({
     textTransform: 'capitalize',
   },
   timeContainer: {
-    gap: 12,
-  },
-  timeCard: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     backgroundColor: '#F8FAFC',
-    padding: 16,
+    padding: 14,
     borderRadius: 12,
-    gap: 12,
   },
-  timeCardContent: {
+  timeItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
     flex: 1,
   },
+  timeDivider: {
+    width: 1,
+    height: 32,
+    backgroundColor: '#E2E8F0',
+    marginHorizontal: 8,
+  },
   timeLabel: {
-    fontSize: 13,
+    fontSize: 11,
     color: '#64748B',
     fontWeight: '500',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   timeValue: {
-    fontSize: 17,
+    fontSize: 14,
     fontWeight: '700',
     color: '#0F172A',
   },

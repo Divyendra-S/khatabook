@@ -1,56 +1,205 @@
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, RefreshControl, Alert } from 'react-native';
+import { useState } from 'react';
 import { router } from 'expo-router';
 import { MaterialCommunityIcons, Feather, Ionicons } from '@expo/vector-icons';
 import { useAllUsers } from '@/hooks/queries/useUser';
+import { useAllCurrentMonthEarnings } from '@/hooks/queries/useEarnings';
+import { useCurrentWeekAttendanceForAll } from '@/hooks/queries/useAttendance';
+import { useDeleteEmployee } from '@/hooks/mutations/useUserMutations';
 import { User } from '@/lib/types';
+import CollapsibleCard from '@/components/ui/CollapsibleCard';
+import SalaryProgressCard from '@/components/salary/SalaryProgressCard';
+import { formatCurrency } from '@/lib/utils/salary.utils';
 
 export default function EmployeesScreen() {
-  const { data: users, isLoading } = useAllUsers();
+  const [refreshing, setRefreshing] = useState(false);
+  const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
 
-  const renderEmployeeItem = ({ item }: { item: User }) => (
-    <TouchableOpacity
-      style={styles.card}
-      onPress={() => router.push(`/(hr)/employee/${item.id}`)}
-      activeOpacity={0.7}
-    >
-      <View style={styles.cardHeader}>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>{item.full_name?.charAt(0).toUpperCase()}</Text>
-        </View>
-        <View style={styles.employeeInfo}>
-          <Text style={styles.employeeName}>{item.full_name}</Text>
-          <Text style={styles.employeeId}>ID: {item.employee_id}</Text>
-          {item.department && (
-            <View style={styles.departmentRow}>
-              <MaterialCommunityIcons name="office-building" size={14} color="#64748B" />
-              <Text style={styles.employeeDept}>{item.department}</Text>
+  const { data: users, isLoading, refetch: refetchUsers } = useAllUsers();
+  const { data: earnings, refetch: refetchEarnings } = useAllCurrentMonthEarnings();
+  const { data: weeklyAttendance, refetch: refetchWeeklyAttendance } = useCurrentWeekAttendanceForAll();
+
+  const deleteEmployee = useDeleteEmployee({
+    onSuccess: () => {
+      console.log('✅ [EmployeesList] Delete success callback triggered');
+      setDeletingUserId(null);
+      Alert.alert('Success', 'Employee deleted successfully');
+    },
+    onError: (error) => {
+      console.error('❌ [EmployeesList] Delete error callback triggered');
+      console.error('❌ [EmployeesList] Error:', error);
+      setDeletingUserId(null);
+      Alert.alert('Error', `Failed to delete employee: ${error.message}`);
+    },
+  });
+
+  // Create a map for quick earnings lookup
+  const earningsMap = earnings?.reduce((acc, earning) => {
+    acc[earning.user_id] = earning;
+    return acc;
+  }, {} as Record<string, typeof earnings[0]>) || {};
+
+  // Weekly attendance is already a map of userId -> days count
+  const weeklyAttendanceMap = weeklyAttendance || {};
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        refetchUsers(),
+        refetchEarnings(),
+        refetchWeeklyAttendance(),
+      ]);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  const handleDeleteEmployee = (employee: User) => {
+    console.log('🗑️ [EmployeesList] Delete button clicked');
+    console.log('🗑️ [EmployeesList] Employee:', employee);
+    console.log('🗑️ [EmployeesList] Employee ID:', employee.id);
+
+    Alert.alert(
+      'Delete Employee',
+      `Are you sure you want to delete ${employee.full_name}? This will permanently delete all their data including attendance, salary records, and leave requests. This action cannot be undone.`,
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+          onPress: () => console.log('🗑️ [EmployeesList] Delete cancelled'),
+        },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            console.log('🗑️ [EmployeesList] Delete confirmed, calling mutation...');
+            console.log('🗑️ [EmployeesList] Setting deletingUserId to:', employee.id);
+            setDeletingUserId(employee.id);
+            deleteEmployee.mutate(employee.id);
+          },
+        },
+      ]
+    );
+  };
+
+  const renderEmployeeItem = ({ item }: { item: User }) => {
+    const employeeEarnings = earningsMap[item.id];
+    const daysWorkedThisWeek = weeklyAttendanceMap[item.id] || 0;
+
+    // Convert values to numbers
+    const baseSalary = Number(item.base_salary || 0);
+    const hourlyRate = Number(item.hourly_rate || 0);
+    const earnedSalary = Number(employeeEarnings?.earned_salary || 0);
+    const hoursWorked = Number(employeeEarnings?.total_hours_worked || 0);
+    const expectedHours = Number(employeeEarnings?.expected_hours || 0);
+
+    const hasSalaryData = baseSalary > 0;
+
+    // Create subtitle for collapsed state
+    const subtitle = hasSalaryData
+      ? `${formatCurrency(earnedSalary)} earned • ${daysWorkedThisWeek} ${daysWorkedThisWeek === 1 ? 'day' : 'days'} this week`
+      : `${item.role} • ${item.is_active ? 'Active' : 'Inactive'}`;
+
+    return (
+      <View style={styles.cardWrapper}>
+        <CollapsibleCard
+          title={item.full_name || 'Unknown Employee'}
+          subtitle={subtitle}
+          icon="person"
+          defaultExpanded={false}
+        >
+          <View style={styles.cardContent}>
+            {/* Basic Info */}
+            <View style={styles.infoSection}>
+              <View style={styles.badgeRow}>
+                <View style={styles.roleBadge}>
+                  <MaterialCommunityIcons
+                    name={item.role === 'hr' || item.role === 'admin' ? 'shield-account' : 'account'}
+                    size={14}
+                    color="#6366F1"
+                  />
+                  <Text style={styles.roleText}>{item.role}</Text>
+                </View>
+                <View style={[styles.statusBadge, item.is_active ? styles.statusActive : styles.statusInactive]}>
+                  <View style={[styles.statusDot, item.is_active ? styles.statusDotActive : styles.statusDotInactive]} />
+                  <Text style={styles.statusText}>{item.is_active ? 'Active' : 'Inactive'}</Text>
+                </View>
+              </View>
+
+              {(item.department || item.designation) && (
+                <View style={styles.detailsGrid}>
+                  {item.department && (
+                    <View style={styles.detailItem}>
+                      <MaterialCommunityIcons name="office-building" size={18} color="#6366F1" />
+                      <View style={styles.detailTextContainer}>
+                        <Text style={styles.detailLabel}>Department</Text>
+                        <Text style={styles.detailValue}>{item.department}</Text>
+                      </View>
+                    </View>
+                  )}
+
+                  {item.designation && (
+                    <View style={styles.detailItem}>
+                      <MaterialCommunityIcons name="account-tie" size={18} color="#6366F1" />
+                      <View style={styles.detailTextContainer}>
+                        <Text style={styles.detailLabel}>Designation</Text>
+                        <Text style={styles.detailValue}>{item.designation}</Text>
+                      </View>
+                    </View>
+                  )}
+                </View>
+              )}
             </View>
-          )}
-        </View>
-        <View style={[styles.statusBadge, item.is_active ? styles.statusActive : styles.statusInactive]}>
-          <View style={[styles.statusDot, item.is_active ? styles.statusDotActive : styles.statusDotInactive]} />
-          <Text style={styles.statusText}>{item.is_active ? 'Active' : 'Inactive'}</Text>
-        </View>
-      </View>
 
-      <View style={styles.cardFooter}>
-        <View style={styles.roleBadge}>
-          <MaterialCommunityIcons
-            name={item.role === 'hr' || item.role === 'admin' ? 'shield-account' : 'account'}
-            size={14}
-            color="#6366F1"
-          />
-          <Text style={styles.roleText}>{item.role}</Text>
-        </View>
-        {item.designation && (
-          <View style={styles.designationWrapper}>
-            <MaterialCommunityIcons name="account-tie" size={14} color="#64748B" />
-            <Text style={styles.designation}>{item.designation}</Text>
+            {/* Salary Information */}
+            {hasSalaryData ? (
+              <View style={styles.salarySection}>
+                <SalaryProgressCard
+                  earnedSalary={earnedSalary}
+                  baseSalary={baseSalary}
+                  hoursWorked={hoursWorked}
+                  expectedHours={expectedHours}
+                  hourlyRate={hourlyRate > 0 ? hourlyRate : undefined}
+                  daysWorkedThisWeek={daysWorkedThisWeek}
+                  compact={false}
+                />
+              </View>
+            ) : (
+              <View style={styles.noSalarySection}>
+                <MaterialCommunityIcons name="cash-off" size={24} color="#94A3B8" />
+                <Text style={styles.noSalaryText}>No salary configuration</Text>
+              </View>
+            )}
+
+            <View style={styles.actionButtonsRow}>
+              <TouchableOpacity
+                style={styles.viewDetailsButton}
+                onPress={() => router.push(`/(hr)/employee/${item.id}`)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.viewDetailsText}>View Full Profile</Text>
+                <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.deleteButtonCard, deletingUserId === item.id && styles.deleteButtonDisabled]}
+                onPress={() => handleDeleteEmployee(item)}
+                activeOpacity={0.7}
+                disabled={deletingUserId === item.id}
+              >
+                {deletingUserId === item.id ? (
+                  <ActivityIndicator size="small" color="#EF4444" />
+                ) : (
+                  <Ionicons name="trash-outline" size={20} color="#EF4444" />
+                )}
+              </TouchableOpacity>
+            </View>
           </View>
-        )}
+        </CollapsibleCard>
       </View>
-    </TouchableOpacity>
-  );
+    );
+  };
 
   return (
     <View style={styles.container}>
@@ -76,6 +225,14 @@ export default function EmployeesScreen() {
           keyExtractor={item => item.id}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={['#6366F1']}
+              tintColor="#6366F1"
+            />
+          }
         />
       ) : (
         <View style={styles.emptyContainer}>
@@ -126,69 +283,114 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   listContent: {
-    padding: 20,
+    padding: 16,
     paddingBottom: 32,
   },
-  card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 20,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    elevation: 3,
+  cardWrapper: {
+    marginBottom: 8,
   },
-  cardHeader: {
+  cardContent: {
+    gap: 20,
+  },
+  infoSection: {
+    gap: 16,
+  },
+  badgeRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
+    gap: 8,
+    flexWrap: 'wrap',
   },
-  avatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#6366F1',
-    justifyContent: 'center',
+  detailsGrid: {
+    gap: 14,
+  },
+  detailItem: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginRight: 16,
+    gap: 12,
+    backgroundColor: '#F8FAFC',
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+  },
+  detailTextContainer: {
+    flex: 1,
+  },
+  detailLabel: {
+    fontSize: 12,
+    color: '#64748B',
+    fontWeight: '500',
+    marginBottom: 2,
+  },
+  detailValue: {
+    fontSize: 14,
+    color: '#0F172A',
+    fontWeight: '600',
+  },
+  salarySection: {
+    paddingTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#E2E8F0',
+  },
+  noSalarySection: {
+    paddingTop: 20,
+    paddingBottom: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#E2E8F0',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 10,
+    padding: 16,
+  },
+  noSalaryText: {
+    fontSize: 14,
+    color: '#94A3B8',
+    fontWeight: '600',
+  },
+  actionButtonsRow: {
+    flexDirection: 'row',
+    gap: 12,
+    alignItems: 'center',
+  },
+  viewDetailsButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#6366F1',
+    paddingVertical: 14,
+    borderRadius: 12,
+    gap: 8,
     shadowColor: '#6366F1',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 4,
     elevation: 2,
   },
-  avatarText: {
-    fontSize: 24,
-    fontWeight: '700',
+  viewDetailsText: {
+    fontSize: 15,
+    fontWeight: '600',
     color: '#FFFFFF',
   },
-  employeeInfo: {
-    flex: 1,
-    gap: 4,
-  },
-  employeeName: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#0F172A',
-    marginBottom: 2,
-  },
-  employeeId: {
-    fontSize: 13,
-    color: '#64748B',
-    fontWeight: '500',
-  },
-  departmentRow: {
-    flexDirection: 'row',
+  deleteButtonCard: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: '#FEE2E2',
+    justifyContent: 'center',
     alignItems: 'center',
-    gap: 4,
-    marginTop: 2,
+    shadowColor: '#EF4444',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  employeeDept: {
-    fontSize: 12,
-    color: '#64748B',
-    fontWeight: '500',
+  deleteButtonDisabled: {
+    opacity: 0.5,
   },
   statusBadge: {
     flexDirection: 'row',
@@ -220,14 +422,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#0F172A',
   },
-  cardFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
-  },
   roleBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -242,16 +436,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#6366F1',
     textTransform: 'uppercase',
-  },
-  designationWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  designation: {
-    fontSize: 13,
-    color: '#64748B',
-    fontWeight: '500',
   },
   loadingContainer: {
     flex: 1,

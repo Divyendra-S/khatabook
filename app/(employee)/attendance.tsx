@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, StatusBar } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, StatusBar, RefreshControl } from 'react-native';
 import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
 import { useAuth } from '@/hooks/auth/useAuth';
 import { useAttendanceByDateRange } from '@/hooks/queries/useAttendance';
@@ -12,10 +12,20 @@ export default function AttendanceScreen() {
   const userId = user?.id || '';
 
   const [selectedMonth, setSelectedMonth] = useState(new Date());
+  const [refreshing, setRefreshing] = useState(false);
   const startDate = getFirstDayOfMonth(selectedMonth).toISOString().split('T')[0];
   const endDate = getLastDayOfMonth(selectedMonth).toISOString().split('T')[0];
 
-  const { data: records, isLoading } = useAttendanceByDateRange(userId, startDate, endDate);
+  const { data: records, isLoading, refetch } = useAttendanceByDateRange(userId, startDate, endDate);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await refetch();
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const renderAttendanceItem = ({ item }: { item: AttendanceRecord }) => {
     const status = getAttendanceStatus(item);
@@ -150,6 +160,14 @@ export default function AttendanceScreen() {
           keyExtractor={item => item.id}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={['#6366F1']}
+              tintColor="#6366F1"
+            />
+          }
         />
       ) : (
         <View style={styles.emptyContainer}>

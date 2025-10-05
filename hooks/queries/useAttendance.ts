@@ -12,10 +12,12 @@ export const attendanceKeys = {
     [...attendanceKeys.all, 'range', userId, startDate, endDate] as const,
   monthlySummary: (userId: string, month: number, year: number) =>
     [...attendanceKeys.all, 'monthly', userId, month, year] as const,
+  currentWeek: (userId: string) => [...attendanceKeys.all, 'current-week', userId] as const,
   byId: (id: string) => [...attendanceKeys.all, 'detail', id] as const,
   hrAll: (filters?: object) => [...attendanceKeys.all, 'hr', 'all', filters] as const,
   hrToday: () => [...attendanceKeys.all, 'hr', 'today'] as const,
-  hrStats: (startDate: string, endDate: string) => 
+  hrCurrentWeekAll: () => [...attendanceKeys.all, 'hr', 'current-week-all'] as const,
+  hrStats: (startDate: string, endDate: string) =>
     [...attendanceKeys.all, 'hr', 'stats', startDate, endDate] as const,
 };
 
@@ -87,6 +89,38 @@ export const useAttendanceById = (
     queryFn: () => attendanceQueries.getAttendanceById(recordId),
     staleTime: 1000 * 60 * 5,
     enabled: !!recordId,
+    ...options,
+  });
+};
+
+/**
+ * Hook to fetch current week attendance records
+ */
+export const useCurrentWeekAttendance = (
+  userId: string,
+  options?: Omit<UseQueryOptions<AttendanceRecord[]>, 'queryKey' | 'queryFn'>
+) => {
+  return useQuery({
+    queryKey: attendanceKeys.currentWeek(userId),
+    queryFn: () => attendanceQueries.getCurrentWeekAttendance(userId),
+    staleTime: 1000 * 60 * 5, // 5 minutes
+    refetchInterval: 1000 * 60 * 10, // Refetch every 10 minutes
+    ...options,
+  });
+};
+
+/**
+ * HR: Hook to fetch current week attendance for all users
+ * Returns a map of userId -> attendance count
+ */
+export const useCurrentWeekAttendanceForAll = (
+  options?: Omit<UseQueryOptions<Record<string, number>>, 'queryKey' | 'queryFn'>
+) => {
+  return useQuery({
+    queryKey: attendanceKeys.hrCurrentWeekAll(),
+    queryFn: () => attendanceQueries.getCurrentWeekAttendanceForAll(),
+    staleTime: 1000 * 60 * 5,
+    refetchInterval: 1000 * 60 * 10,
     ...options,
   });
 };

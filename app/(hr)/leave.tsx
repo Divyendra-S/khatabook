@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useAuth } from "@/hooks/auth/useAuth";
 import { useReviewLeaveRequest } from "@/hooks/mutations/useLeaveMutations";
 import { useHRAllLeaveRequests } from "@/hooks/queries/useLeave";
@@ -12,11 +13,23 @@ import {
   Text,
   TouchableOpacity,
   View,
+  RefreshControl,
 } from "react-native";
 
 export default function HRLeaveScreen() {
   const { user } = useAuth();
-  const { data: leaveRequests, isLoading } = useHRAllLeaveRequests();
+  const [refreshing, setRefreshing] = useState(false);
+  const [activeTab, setActiveTab] = useState<'pending' | 'all'>('pending');
+  const { data: leaveRequests, isLoading, refetch } = useHRAllLeaveRequests();
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await refetch();
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const reviewMutation = useReviewLeaveRequest({
     onSuccess: () => {
@@ -66,6 +79,14 @@ export default function HRLeaveScreen() {
       ]
     );
   };
+
+  // Filter leave requests based on active tab
+  const filteredLeaveRequests = leaveRequests?.filter(request => {
+    if (activeTab === 'pending') {
+      return request.status === 'pending';
+    }
+    return true; // 'all' tab shows everything
+  });
 
   const renderLeaveItem = ({ item }: { item: LeaveRequest }) => {
     const statusConfig = {
@@ -220,23 +241,67 @@ export default function HRLeaveScreen() {
 
   return (
     <View style={styles.container}>
+      {/* Tabs */}
+      <View style={styles.tabsContainer}>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === 'pending' && styles.activeTab]}
+          onPress={() => setActiveTab('pending')}
+          activeOpacity={0.7}
+        >
+          <Text style={[styles.tabText, activeTab === 'pending' && styles.activeTabText]}>
+            Pending
+          </Text>
+          {leaveRequests?.filter(r => r.status === 'pending').length > 0 && (
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>
+                {leaveRequests?.filter(r => r.status === 'pending').length}
+              </Text>
+            </View>
+          )}
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.tab, activeTab === 'all' && styles.activeTab]}
+          onPress={() => setActiveTab('all')}
+          activeOpacity={0.7}
+        >
+          <Text style={[styles.tabText, activeTab === 'all' && styles.activeTabText]}>
+            All
+          </Text>
+          {leaveRequests && leaveRequests.length > 0 && (
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>{leaveRequests.length}</Text>
+            </View>
+          )}
+        </TouchableOpacity>
+      </View>
 
       {isLoading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#6366F1" />
         </View>
-      ) : leaveRequests && leaveRequests.length > 0 ? (
+      ) : filteredLeaveRequests && filteredLeaveRequests.length > 0 ? (
         <FlatList
-          data={leaveRequests}
+          data={filteredLeaveRequests}
           renderItem={renderLeaveItem}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={['#6366F1']}
+              tintColor="#6366F1"
+            />
+          }
         />
       ) : (
         <View style={styles.emptyContainer}>
           <MaterialCommunityIcons name="beach" size={64} color="#CBD5E1" />
-          <Text style={styles.emptyText}>No leave requests</Text>
+          <Text style={styles.emptyText}>
+            {activeTab === 'pending' ? 'No pending requests' : 'No leave requests'}
+          </Text>
           <Text style={styles.emptySubtext}>
             Leave requests will appear here
           </Text>
@@ -250,6 +315,51 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#F8FAFC",
+  },
+  tabsContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 12,
+    gap: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+  },
+  tab: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    backgroundColor: '#F8FAFC',
+    gap: 8,
+  },
+  activeTab: {
+    backgroundColor: '#6366F1',
+  },
+  tabText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  activeTabText: {
+    color: '#FFFFFF',
+  },
+  badge: {
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    minWidth: 24,
+    alignItems: 'center',
+  },
+  badgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
   listContent: {
     padding: 20,

@@ -1,26 +1,33 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, StatusBar } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, FlatList, TouchableOpacity, ActivityIndicator, StatusBar, RefreshControl } from 'react-native';
+import { useState } from 'react';
 import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/hooks/auth/useAuth';
 import { useTodayAttendance, useMonthlyAttendanceSummary } from '@/hooks/queries/useAttendance';
 import { useLatestSalary } from '@/hooks/queries/useSalary';
+import { useCurrentMonthEarnings } from '@/hooks/queries/useEarnings';
 import { useCheckIn, useCheckOut } from '@/hooks/mutations/useAttendanceMutations';
 import { formatDate, formatTime } from '@/lib/utils/date.utils';
 import { formatCurrency } from '@/lib/utils/salary.utils';
 import { formatHours } from '@/lib/utils/attendance.utils';
+import { isTodayWorkingDay, formatWorkingDays } from '@/lib/utils/workingDays.utils';
+import SalaryProgressCard from '@/components/salary/SalaryProgressCard';
+import { WeekDay } from '@/lib/types';
 
 export default function EmployeeDashboard() {
+  const [refreshing, setRefreshing] = useState(false);
   const router = useRouter();
   const { user } = useAuth();
   const userId = user?.id || '';
 
-  const { data: todayAttendance, isLoading: loadingToday } = useTodayAttendance(userId);
-  const { data: monthlySummary, isLoading: loadingMonthly } = useMonthlyAttendanceSummary(
+  const { data: todayAttendance, isLoading: loadingToday, refetch: refetchToday } = useTodayAttendance(userId);
+  const { data: monthlySummary, isLoading: loadingMonthly, refetch: refetchMonthly } = useMonthlyAttendanceSummary(
     userId,
     new Date().getMonth(),
     new Date().getFullYear()
   );
-  const { data: latestSalary, isLoading: loadingSalary } = useLatestSalary(userId);
+  const { data: latestSalary, isLoading: loadingSalary, refetch: refetchSalary } = useLatestSalary(userId);
+  const { data: earnings, isLoading: loadingEarnings, refetch: refetchEarnings } = useCurrentMonthEarnings(userId);
 
   const checkInMutation = useCheckIn(userId);
   const checkOutMutation = useCheckOut(userId);
@@ -36,7 +43,23 @@ export default function EmployeeDashboard() {
   };
 
   const isCheckedIn = todayAttendance && !todayAttendance.check_out_time;
-  const canCheckIn = !todayAttendance;
+  const workingDays = (user?.working_days || []) as WeekDay[];
+  const isTodayWorking = isTodayWorkingDay(workingDays);
+  const canCheckIn = !todayAttendance && isTodayWorking;
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        refetchToday(),
+        refetchMonthly(),
+        refetchSalary(),
+        refetchEarnings(),
+      ]);
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -61,6 +84,15 @@ export default function EmployeeDashboard() {
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={['#6366F1']}
+            tintColor="#6366F1"
+          />
+        }
+        alwaysBounceVertical={true}
       >
         {/* Content Cards */}
         <View style={styles.content}>
@@ -125,6 +157,21 @@ export default function EmployeeDashboard() {
                   <View style={styles.emptyStateContainer}>
                     <Feather name="calendar" size={40} color="#94A3B8" />
                     <Text style={styles.emptyStateText}>No attendance recorded today</Text>
+                  </View>
+                )}
+
+                {(!todayAttendance && !isTodayWorking) && (
+                  <View style={styles.nonWorkingDayContainer}>
+                    <Ionicons name="calendar-outline" size={24} color="#F59E0B" />
+                    <Text style={styles.nonWorkingDayTitle}>Not a Working Day</Text>
+                    <Text style={styles.nonWorkingDayText}>
+                      Today is not a configured working day
+                    </Text>
+                    {(workingDays.length > 0) && (
+                      <Text style={styles.workingDaysText}>
+                        Working days: {formatWorkingDays(workingDays)}
+                      </Text>
+                    )}
                   </View>
                 )}
 
@@ -226,6 +273,34 @@ export default function EmployeeDashboard() {
               </View>
             )}
           </View>
+
+          {/* Monthly Earnings */}
+          {(user?.base_salary != null && user.base_salary > 0) && (
+            <View style={styles.card}>
+              <View style={styles.cardHeader}>
+                <View style={styles.cardHeaderLeft}>
+                  <View style={styles.iconContainer}>
+                    <MaterialCommunityIcons name="cash-multiple" size={24} color="#6366F1" />
+                  </View>
+                  <Text style={styles.cardTitle}>This Month's Earnings</Text>
+                </View>
+              </View>
+
+              {loadingEarnings ? (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator size="small" color="#6366F1" />
+                </View>
+              ) : (
+                <SalaryProgressCard
+                  earnedSalary={earnings?.earned_salary || 0}
+                  baseSalary={user.base_salary || 0}
+                  hoursWorked={earnings?.total_hours_worked || 0}
+                  expectedHours={earnings?.expected_hours || 0}
+                  compact={false}
+                />
+              )}
+            </View>
+          )}
 
           {/* Latest Salary */}
           <View style={styles.card}>
@@ -616,5 +691,32 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textTransform: 'capitalize',
     color: '#0F172A',
+  },
+  nonWorkingDayContainer: {
+    backgroundColor: '#FEF3C7',
+    padding: 20,
+    borderRadius: 12,
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+  },
+  nonWorkingDayTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#92400E',
+    marginTop: 8,
+  },
+  nonWorkingDayText: {
+    fontSize: 14,
+    color: '#78350F',
+    textAlign: 'center',
+  },
+  workingDaysText: {
+    fontSize: 13,
+    color: '#92400E',
+    fontWeight: '600',
+    marginTop: 4,
+    textAlign: 'center',
   },
 });

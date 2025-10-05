@@ -1,4 +1,5 @@
-import { View, Text, StyleSheet, FlatList, ActivityIndicator, StatusBar } from 'react-native';
+import { useState } from 'react';
+import { View, Text, StyleSheet, FlatList, ActivityIndicator, StatusBar, RefreshControl } from 'react-native';
 import { MaterialCommunityIcons, Feather } from '@expo/vector-icons';
 import { useAuth } from '@/hooks/auth/useAuth';
 import { useSalaryRecords } from '@/hooks/queries/useSalary';
@@ -9,8 +10,18 @@ import { SalaryRecord } from '@/lib/types';
 export default function SalaryScreen() {
   const { user } = useAuth();
   const userId = user?.id || '';
+  const [refreshing, setRefreshing] = useState(false);
 
-  const { data: salaryRecords, isLoading } = useSalaryRecords(userId);
+  const { data: salaryRecords, isLoading, refetch } = useSalaryRecords(userId);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await refetch();
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const renderSalaryItem = ({ item }: { item: SalaryRecord }) => {
     const statusConfig = {
@@ -141,6 +152,14 @@ export default function SalaryScreen() {
           keyExtractor={item => item.id}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={['#6366F1']}
+              tintColor="#6366F1"
+            />
+          }
         />
       ) : (
         <View style={styles.emptyContainer}>

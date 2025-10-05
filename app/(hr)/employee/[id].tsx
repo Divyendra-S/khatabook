@@ -1,11 +1,16 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useUserById } from '@/hooks/queries/useUser';
-import { useAttendanceByDateRange } from '@/hooks/queries/useAttendance';
+import { useAttendanceByDateRange, useCurrentWeekAttendance } from '@/hooks/queries/useAttendance';
 import { useSalaryRecords } from '@/hooks/queries/useSalary';
+import { useCurrentMonthEarnings } from '@/hooks/queries/useEarnings';
+import { useDeleteEmployee } from '@/hooks/mutations/useUserMutations';
 import { formatDate } from '@/lib/utils/date.utils';
+import { formatCurrency } from '@/lib/utils/salary.utils';
+import { formatWorkingDays } from '@/lib/utils/workingDays.utils';
+import SalaryProgressCard from '@/components/salary/SalaryProgressCard';
 
 export default function EmployeeDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -13,10 +18,32 @@ export default function EmployeeDetailScreen() {
   const insets = useSafeAreaInsets();
 
   const { data: employee, isLoading: loadingEmployee } = useUserById(employeeId);
+  const deleteEmployee = useDeleteEmployee({
+    onSuccess: () => {
+      console.log('✅ [EmployeeDetail] Delete success callback triggered');
+      Alert.alert('Success', 'Employee deleted successfully', [
+        {
+          text: 'OK',
+          onPress: () => {
+            console.log('✅ [EmployeeDetail] Navigating back...');
+            router.back();
+          },
+        },
+      ]);
+    },
+    onError: (error) => {
+      console.error('❌ [EmployeeDetail] Delete error callback triggered');
+      console.error('❌ [EmployeeDetail] Error:', error);
+      Alert.alert('Error', `Failed to delete employee: ${error.message}`);
+    },
+  });
 
-  // Get last 30 days attendance
-  const endDate = new Date().toISOString().split('T')[0];
-  const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+  // Get current month attendance
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth(); // 0-indexed
+  const startDate = new Date(currentYear, currentMonth, 1).toISOString().split('T')[0];
+  const endDate = new Date(currentYear, currentMonth + 1, 0).toISOString().split('T')[0];
 
   const { data: attendance, isLoading: loadingAttendance } = useAttendanceByDateRange(
     employeeId,
@@ -24,7 +51,35 @@ export default function EmployeeDetailScreen() {
     endDate
   );
 
+  const { data: weeklyAttendance } = useCurrentWeekAttendance(employeeId);
+  const { data: currentMonthEarnings } = useCurrentMonthEarnings(employeeId);
   const { data: salaries, isLoading: loadingSalaries } = useSalaryRecords(employeeId);
+
+  const handleDeleteEmployee = () => {
+    console.log('🗑️ [EmployeeDetail] Delete button clicked');
+    console.log('🗑️ [EmployeeDetail] Employee:', employee);
+    console.log('🗑️ [EmployeeDetail] Employee ID:', employeeId);
+
+    Alert.alert(
+      'Delete Employee',
+      `Are you sure you want to delete ${employee?.full_name}? This will permanently delete all their data including attendance, salary records, and leave requests. This action cannot be undone.`,
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+          onPress: () => console.log('🗑️ [EmployeeDetail] Delete cancelled'),
+        },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            console.log('🗑️ [EmployeeDetail] Delete confirmed, calling mutation...');
+            deleteEmployee.mutate(employeeId);
+          },
+        },
+      ]
+    );
+  };
 
   if (loadingEmployee) {
     return (
@@ -34,7 +89,14 @@ export default function EmployeeDetailScreen() {
             <Ionicons name="arrow-back" size={24} color="#0F172A" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Employee Details</Text>
-          <View style={{ width: 40 }} />
+          <View style={styles.headerActions}>
+            <TouchableOpacity
+              style={[styles.actionButton, styles.deleteButton]}
+              disabled={true}
+            >
+              <Ionicons name="trash-outline" size={20} color="#94A3B8" />
+            </TouchableOpacity>
+          </View>
         </View>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#6366F1" />
@@ -51,7 +113,14 @@ export default function EmployeeDetailScreen() {
             <Ionicons name="arrow-back" size={24} color="#0F172A" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Employee Details</Text>
-          <View style={{ width: 40 }} />
+          <View style={styles.headerActions}>
+            <TouchableOpacity
+              style={[styles.actionButton, styles.deleteButton]}
+              disabled={true}
+            >
+              <Ionicons name="trash-outline" size={20} color="#94A3B8" />
+            </TouchableOpacity>
+          </View>
         </View>
         <View style={styles.errorContainer}>
           <Feather name="alert-circle" size={64} color="#CBD5E1" />
@@ -76,7 +145,20 @@ export default function EmployeeDetailScreen() {
           <Ionicons name="arrow-back" size={24} color="#0F172A" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Employee Details</Text>
-        <View style={{ width: 40 }} />
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            style={[styles.actionButton, styles.deleteButton]}
+            onPress={handleDeleteEmployee}
+            disabled={deleteEmployee.isPending}
+            activeOpacity={0.7}
+          >
+            {deleteEmployee.isPending ? (
+              <ActivityIndicator size="small" color="#EF4444" />
+            ) : (
+              <Ionicons name="trash-outline" size={20} color="#EF4444" />
+            )}
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
@@ -169,7 +251,7 @@ export default function EmployeeDetailScreen() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <MaterialCommunityIcons name="calendar-clock-outline" size={20} color="#6366F1" />
-            <Text style={styles.sectionTitle}>Attendance Summary (Last 30 Days)</Text>
+            <Text style={styles.sectionTitle}>Attendance Summary (Current Month)</Text>
           </View>
 
           {loadingAttendance ? (
@@ -212,7 +294,90 @@ export default function EmployeeDetailScreen() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <MaterialCommunityIcons name="wallet-outline" size={20} color="#6366F1" />
-            <Text style={styles.sectionTitle}>Salary Records</Text>
+            <Text style={styles.sectionTitle}>Salary Configuration</Text>
+          </View>
+
+          {employee.base_salary && Number(employee.base_salary) > 0 ? (
+            <View style={styles.infoCard}>
+              <View style={styles.infoRow}>
+                <View style={styles.infoLabelContainer}>
+                  <MaterialCommunityIcons name="cash" size={18} color="#64748B" />
+                  <Text style={styles.infoLabel}>Base Salary</Text>
+                </View>
+                <Text style={styles.infoValue}>{formatCurrency(Number(employee.base_salary))}</Text>
+              </View>
+
+              <View style={styles.divider} />
+
+              <View style={styles.infoRow}>
+                <View style={styles.infoLabelContainer}>
+                  <MaterialCommunityIcons name="cash-clock" size={18} color="#64748B" />
+                  <Text style={styles.infoLabel}>Hourly Rate</Text>
+                </View>
+                <Text style={styles.infoValue}>
+                  {employee.hourly_rate ? `${formatCurrency(Number(employee.hourly_rate))}/h` : 'N/A'}
+                </Text>
+              </View>
+
+              <View style={styles.divider} />
+
+              <View style={styles.infoRow}>
+                <View style={styles.infoLabelContainer}>
+                  <MaterialCommunityIcons name="calendar-check" size={18} color="#64748B" />
+                  <Text style={styles.infoLabel}>Working Days</Text>
+                </View>
+                <Text style={styles.infoValue}>
+                  {employee.working_days && employee.working_days.length > 0
+                    ? formatWorkingDays(employee.working_days as any)
+                    : 'Not set'}
+                </Text>
+              </View>
+
+              <View style={styles.divider} />
+
+              <View style={styles.infoRow}>
+                <View style={styles.infoLabelContainer}>
+                  <MaterialCommunityIcons name="clock-outline" size={18} color="#64748B" />
+                  <Text style={styles.infoLabel}>Daily Hours</Text>
+                </View>
+                <Text style={styles.infoValue}>
+                  {employee.daily_working_hours ? `${employee.daily_working_hours}h` : 'Not set'}
+                </Text>
+              </View>
+            </View>
+          ) : (
+            <View style={styles.emptyCard}>
+              <MaterialCommunityIcons name="cash-off" size={48} color="#CBD5E1" />
+              <Text style={styles.emptyText}>No salary configuration</Text>
+            </View>
+          )}
+        </View>
+
+        {employee.base_salary && Number(employee.base_salary) > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <MaterialCommunityIcons name="chart-line" size={20} color="#6366F1" />
+              <Text style={styles.sectionTitle}>Current Month Earnings</Text>
+            </View>
+
+            <View style={styles.salaryCard}>
+              <SalaryProgressCard
+                earnedSalary={Number(currentMonthEarnings?.earned_salary || 0)}
+                baseSalary={Number(employee.base_salary || 0)}
+                hoursWorked={Number(currentMonthEarnings?.total_hours_worked || 0)}
+                expectedHours={Number(currentMonthEarnings?.expected_hours || 0)}
+                hourlyRate={Number(employee.hourly_rate || 0)}
+                daysWorkedThisWeek={weeklyAttendance?.length || 0}
+                compact={false}
+              />
+            </View>
+          </View>
+        )}
+
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <MaterialCommunityIcons name="file-document-outline" size={20} color="#6366F1" />
+            <Text style={styles.sectionTitle}>Salary Payment History</Text>
           </View>
 
           {loadingSalaries ? (
@@ -252,7 +417,7 @@ export default function EmployeeDetailScreen() {
           ) : (
             <View style={styles.emptyCard}>
               <Feather name="inbox" size={48} color="#CBD5E1" />
-              <Text style={styles.emptyText}>No salary records</Text>
+              <Text style={styles.emptyText}>No payment records</Text>
             </View>
           )}
         </View>
@@ -288,6 +453,20 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     color: '#0F172A',
+  },
+  headerActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  actionButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  deleteButton: {
+    backgroundColor: '#FEE2E2',
   },
   loadingContainer: {
     flex: 1,
@@ -537,5 +716,15 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#94A3B8',
     textAlign: 'center',
+  },
+  salaryCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
   },
 });

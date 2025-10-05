@@ -132,4 +132,44 @@ export const userMutations = {
     if (error) throw error;
     return data;
   },
+
+  /**
+   * Delete employee and all related data (HR only)
+   * This will delete:
+   * - Attendance records
+   * - Salary records
+   * - Leave requests
+   * - Notifications
+   * - Monthly earnings
+   * - User account (from both public.users and auth.users)
+   */
+  deleteEmployee: async (userId: string) => {
+    console.log('🗑️ [deleteEmployee] Starting deletion for userId:', userId);
+
+    try {
+      // Call the database function to delete employee and all related data
+      console.log('🗑️ [deleteEmployee] Calling RPC function with params:', { p_employee_id: userId });
+
+      const { data, error } = await supabase.rpc('delete_employee_with_cascade', {
+        p_employee_id: userId,
+      });
+
+      if (error) {
+        console.error('❌ [deleteEmployee] RPC Error:', error);
+        console.error('❌ [deleteEmployee] Error details:', {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code,
+        });
+        throw error;
+      }
+
+      console.log('✅ [deleteEmployee] Success! Response data:', data);
+      return data;
+    } catch (err) {
+      console.error('❌ [deleteEmployee] Caught exception:', err);
+      throw err;
+    }
+  },
 };

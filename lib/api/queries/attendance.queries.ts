@@ -165,6 +165,124 @@ export const attendanceQueries = {
   },
 
   /**
+   * Get current week attendance records for a user (current month only)
+   * Week starts on Monday and ends on Sunday
+   * Only returns valid completed days in current month (checked out, met daily hours requirement)
+   */
+  getCurrentWeekAttendance: async (userId: string): Promise<AttendanceRecord[]> => {
+    const today = new Date();
+    const dayOfWeek = today.getDay(); // 0 = Sunday, 1 = Monday, etc.
+    const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek; // Adjust to Monday
+
+    const monday = new Date(today);
+    monday.setDate(today.getDate() + mondayOffset);
+    monday.setHours(0, 0, 0, 0);
+
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    sunday.setHours(23, 59, 59, 999);
+
+    // Current month boundaries
+    const currentYear = today.getFullYear();
+    const currentMonth = today.getMonth();
+    const monthStart = new Date(currentYear, currentMonth, 1).toISOString().split('T')[0];
+    const monthEnd = new Date(currentYear, currentMonth + 1, 0).toISOString().split('T')[0];
+
+    // Week boundaries
+    const weekStart = monday.toISOString().split('T')[0];
+    const weekEnd = sunday.toISOString().split('T')[0];
+
+    // Use the later start date and earlier end date to get intersection
+    const startDate = weekStart > monthStart ? weekStart : monthStart;
+    const endDate = weekEnd < monthEnd ? weekEnd : monthEnd;
+
+    // Get user's daily working hours requirement
+    const { data: user } = await supabase
+      .from('users')
+      .select('daily_working_hours')
+      .eq('id', userId)
+      .single();
+
+    const requiredHours = user?.daily_working_hours || 8;
+
+    const { data, error } = await supabase
+      .from('attendance_records')
+      .select('*')
+      .eq('user_id', userId)
+      .gte('date', startDate)
+      .lte('date', endDate)
+      .not('check_out_time', 'is', null) // Must have checked out
+      .gte('total_hours', requiredHours) // Must meet or exceed required daily hours
+      .order('date', { ascending: true });
+
+    if (error) throw error;
+    return data || [];
+  },
+
+  /**
+   * Get current week attendance for all users (HR only, current month only)
+   * Returns a map of userId -> attendance count for the current week in current month
+   * Only counts valid completed days (checked out, met daily hours requirement)
+   */
+  getCurrentWeekAttendanceForAll: async (): Promise<Record<string, number>> => {
+    const today = new Date();
+    const dayOfWeek = today.getDay(); // 0 = Sunday, 1 = Monday, etc.
+    const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+
+    const monday = new Date(today);
+    monday.setDate(today.getDate() + mondayOffset);
+    monday.setHours(0, 0, 0, 0);
+
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    sunday.setHours(23, 59, 59, 999);
+
+    // Current month boundaries
+    const currentYear = today.getFullYear();
+    const currentMonth = today.getMonth();
+    const monthStart = new Date(currentYear, currentMonth, 1).toISOString().split('T')[0];
+    const monthEnd = new Date(currentYear, currentMonth + 1, 0).toISOString().split('T')[0];
+
+    // Week boundaries
+    const weekStart = monday.toISOString().split('T')[0];
+    const weekEnd = sunday.toISOString().split('T')[0];
+
+    // Use the later start date and earlier end date to get intersection
+    const startDate = weekStart > monthStart ? weekStart : monthStart;
+    const endDate = weekEnd < monthEnd ? weekEnd : monthEnd;
+
+    // Get attendance records joined with user's daily working hours
+    const { data, error } = await supabase
+      .from('attendance_records')
+      .select(`
+        user_id,
+        date,
+        check_out_time,
+        total_hours,
+        users!inner(daily_working_hours)
+      `)
+      .gte('date', startDate)
+      .lte('date', endDate)
+      .not('check_out_time', 'is', null); // Must have checked out
+
+    if (error) throw error;
+
+    // Count valid attendance days per user (where hours >= required hours)
+    const attendanceMap: Record<string, number> = {};
+    (data || []).forEach((record: any) => {
+      const requiredHours = record.users?.daily_working_hours || 8;
+      const totalHours = Number(record.total_hours || 0);
+
+      // Only count if employee met or exceeded their daily hour requirement
+      if (totalHours >= requiredHours) {
+        attendanceMap[record.user_id] = (attendanceMap[record.user_id] || 0) + 1;
+      }
+    });
+
+    return attendanceMap;
+  },
+
+  /**
    * Get all employees with attendance status for a date range (HR only)
    * Shows all employees including those who didn't check in (absent)
    */

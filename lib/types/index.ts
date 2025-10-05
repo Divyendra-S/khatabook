@@ -12,6 +12,7 @@ export type SalaryRecord = Tables<'salary_records'> & {
 export type LeaveRequest = Tables<'leave_requests'>;
 export type Notification = Tables<'notifications'>;
 export type Organization = Tables<'organizations'>;
+export type EmployeeMonthlyEarnings = Tables<'employee_monthly_earnings'>;
 
 // Enums
 export type UserRole = 'employee' | 'hr' | 'admin';
@@ -20,10 +21,15 @@ export type LeaveStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
 export type SalaryStatus = 'draft' | 'pending' | 'approved' | 'paid';
 export type PaymentMethod = 'bank_transfer' | 'cash' | 'cheque' | 'upi';
 export type NotificationType = 'attendance' | 'salary' | 'leave' | 'announcement' | 'system';
+export type WeekDay = 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
 
 // Extended types with relations
 export type UserWithOrganization = User & {
   organization?: Organization;
+};
+
+export type UserWithEarnings = User & {
+  current_month_earnings?: EmployeeMonthlyEarnings;
 };
 
 export type AttendanceWithUser = AttendanceRecord & {
@@ -37,6 +43,10 @@ export type SalaryWithUser = SalaryRecord & {
 export type LeaveRequestWithUser = LeaveRequest & {
   user?: Pick<User, 'full_name' | 'employee_id'>;
   reviewer?: Pick<User, 'full_name'>;
+};
+
+export type EarningsWithUser = EmployeeMonthlyEarnings & {
+  user?: Pick<User, 'full_name' | 'employee_id' | 'base_salary' | 'hourly_rate'>;
 };
 
 // Monthly attendance summary
@@ -118,6 +128,17 @@ export interface EmployeeForm {
   designation?: string;
   dateOfJoining?: string;
   password?: string;
+  baseSalary?: number;
+  workingDays?: WeekDay[];
+  dailyWorkingHours?: number;
+}
+
+export interface EmployeeSalaryConfig {
+  baseSalary: number;
+  workingDays: WeekDay[];
+  dailyWorkingHours: number;
+  hourlyRate?: number;
+  monthlyTotalHours?: number;
 }
 
 // Organization stats

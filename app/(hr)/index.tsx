@@ -1,4 +1,5 @@
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator, StatusBar, TouchableOpacity } from 'react-native';
+import { useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, StatusBar, TouchableOpacity, RefreshControl } from 'react-native';
 import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
 import { useAuth } from '@/hooks/auth/useAuth';
 import { useHRAllEmployeesAttendance } from '@/hooks/queries/useAttendance';
@@ -11,11 +12,27 @@ import { useRouter } from 'expo-router';
 export default function HRDashboard() {
   const router = useRouter();
   const { user } = useAuth();
+  const [refreshing, setRefreshing] = useState(false);
   const today = formatDateToISO(new Date());
-  const { data: todayAttendance, isLoading: loadingAttendance } = useHRAllEmployeesAttendance({ date: today });
-  const { data: pendingSalaries, isLoading: loadingSalaries } = useHRPendingSalaries();
-  const { data: pendingLeaves, isLoading: loadingLeaves } = useHRPendingLeaveRequests();
-  const { data: allUsers, isLoading: loadingUsers } = useAllUsers();
+
+  const { data: todayAttendance, isLoading: loadingAttendance, refetch: refetchAttendance } = useHRAllEmployeesAttendance({ date: today });
+  const { data: pendingSalaries, isLoading: loadingSalaries, refetch: refetchSalaries } = useHRPendingSalaries();
+  const { data: pendingLeaves, isLoading: loadingLeaves, refetch: refetchLeaves } = useHRPendingLeaveRequests();
+  const { data: allUsers, isLoading: loadingUsers, refetch: refetchUsers } = useAllUsers();
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        refetchAttendance(),
+        refetchSalaries(),
+        refetchLeaves(),
+        refetchUsers(),
+      ]);
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const activeEmployees = allUsers?.filter(u => u.is_active && u.role === 'employee').length || 0;
   const checkedInToday = todayAttendance?.filter(a => a.check_in_time !== null).length || 0;
@@ -43,6 +60,14 @@ export default function HRDashboard() {
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={['#6366F1']}
+            tintColor="#6366F1"
+          />
+        }
       >
         {/* Content Cards */}
         <View style={styles.content}>
