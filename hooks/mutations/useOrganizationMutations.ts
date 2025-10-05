@@ -14,7 +14,7 @@ export const useCreateEmployee = (
     Error,
     {
       email: string;
-      password: string;
+      password?: string;
       fullName: string;
       employeeId: string;
       phone?: string;
@@ -22,6 +22,9 @@ export const useCreateEmployee = (
       designation?: string;
       role?: 'employee' | 'hr';
       dateOfJoining?: string;
+      baseSalary?: number;
+      workingDays?: string[];
+      dailyWorkingHours?: number;
     }
   >
 ) => {
@@ -39,6 +42,10 @@ export const useCreateEmployee = (
       // Invalidate organization stats
       queryClient.invalidateQueries({
         queryKey: organizationKeys.stats(organizationId),
+      });
+      // Invalidate next employee ID to fetch new one
+      queryClient.invalidateQueries({
+        queryKey: organizationKeys.nextEmployeeId(organizationId),
       });
       // Invalidate all users query
       queryClient.invalidateQueries({

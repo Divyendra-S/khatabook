@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -15,7 +15,7 @@ import { router } from 'expo-router';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCreateEmployee } from '@/hooks/mutations/useOrganizationMutations';
-import { useCurrentOrganization } from '@/hooks/queries/useOrganization';
+import { useCurrentOrganization, useNextEmployeeId } from '@/hooks/queries/useOrganization';
 import { UserRole, WeekDay } from '@/lib/types';
 import DatePicker from '@/components/ui/DatePicker';
 import WorkingDaysSelector from '@/components/employee/WorkingDaysSelector';
@@ -28,6 +28,8 @@ import {
 export default function AddEmployeeScreen() {
   const insets = useSafeAreaInsets();
   const { data: organization } = useCurrentOrganization();
+  const { data: nextEmployeeId, isLoading: isLoadingEmployeeId } = useNextEmployeeId(organization?.id || '');
+
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
@@ -42,6 +44,13 @@ export default function AddEmployeeScreen() {
     workingDays: DEFAULT_WORKING_DAYS as WeekDay[],
     dailyWorkingHours: '8',
   });
+
+  // Auto-set employee ID when fetched
+  useEffect(() => {
+    if (nextEmployeeId) {
+      setFormData(prev => ({ ...prev, employeeId: nextEmployeeId }));
+    }
+  }, [nextEmployeeId]);
 
   // Calculate real-time salary metrics
   const baseSalaryNum = parseFloat(formData.baseSalary) || 0;
@@ -78,10 +87,6 @@ export default function AddEmployeeScreen() {
       Alert.alert('Error', 'Please enter email');
       return;
     }
-    if (!formData.employeeId.trim()) {
-      Alert.alert('Error', 'Please enter employee ID');
-      return;
-    }
     // Password is optional - will default to email if not provided
     if (formData.password.trim() && formData.password.length < 6) {
       Alert.alert('Error', 'Password must be at least 6 characters');
@@ -95,12 +100,12 @@ export default function AddEmployeeScreen() {
 
     createEmployeeMutation.mutate({
       email: formData.email.trim().toLowerCase(),
-      password: formData.password.trim() || undefined, // Optional, will default to email in Edge Function
+      password: formData.password.trim() ? formData.password.trim() : undefined, // Optional, will default to email in Edge Function
       fullName: formData.fullName.trim(),
       employeeId: formData.employeeId.trim(),
-      phone: formData.phone.trim() || undefined,
-      department: formData.department.trim() || undefined,
-      designation: formData.designation.trim() || undefined,
+      phone: formData.phone.trim() ? formData.phone.trim() : undefined,
+      department: formData.department.trim() ? formData.department.trim() : undefined,
+      designation: formData.designation.trim() ? formData.designation.trim() : undefined,
       role: formData.role,
       dateOfJoining: formData.dateOfJoining,
       baseSalary: baseSalaryNum || undefined,
@@ -170,7 +175,7 @@ export default function AddEmployeeScreen() {
               <Ionicons name="lock-closed-outline" size={20} color="#64748B" />
               <TextInput
                 style={styles.input}
-                placeholder="Leave empty to use email as password"
+                placeholder="Enter password (optional)"
                 value={formData.password}
                 onChangeText={(text) => setFormData({ ...formData, password: text })}
                 secureTextEntry
@@ -186,16 +191,23 @@ export default function AddEmployeeScreen() {
             <Text style={styles.label}>
               Employee ID <Text style={styles.required}>*</Text>
             </Text>
-            <View style={styles.inputWrapper}>
+            <View style={[styles.inputWrapper, styles.disabledInput]}>
               <MaterialCommunityIcons name="badge-account-outline" size={20} color="#64748B" />
-              <TextInput
-                style={styles.input}
-                placeholder="Enter employee ID"
-                value={formData.employeeId}
-                onChangeText={(text) => setFormData({ ...formData, employeeId: text })}
-                placeholderTextColor="#94A3B8"
-              />
+              {isLoadingEmployeeId ? (
+                <ActivityIndicator size="small" color="#6366F1" />
+              ) : (
+                <TextInput
+                  style={styles.input}
+                  placeholder="Auto-generated"
+                  value={formData.employeeId}
+                  editable={false}
+                  placeholderTextColor="#94A3B8"
+                />
+              )}
             </View>
+            <Text style={styles.helperText}>
+              Employee ID is automatically generated
+            </Text>
           </View>
 
           <View style={styles.inputGroup}>
@@ -453,6 +465,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E2E8F0',
     gap: 12,
+  },
+  disabledInput: {
+    backgroundColor: '#F1F5F9',
+    borderColor: '#CBD5E1',
   },
   input: {
     flex: 1,

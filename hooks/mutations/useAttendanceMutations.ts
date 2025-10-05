@@ -14,23 +14,45 @@ export const useCheckIn = (
 
   return useMutation({
     mutationFn: ({ notes }) => attendanceMutations.checkIn(userId, notes),
-    onSuccess: () => {
-      // Invalidate today's attendance query
-      queryClient.invalidateQueries({ queryKey: attendanceKeys.today(userId) });
-
-      // Invalidate monthly summary
-      const now = new Date();
-      queryClient.invalidateQueries({
-        queryKey: attendanceKeys.monthlySummary(userId, now.getMonth(), now.getFullYear())
-      });
-
-      // Invalidate ALL attendance-related queries to ensure fresh data
-      queryClient.invalidateQueries({
+    onSuccess: async (data, variables, context) => {
+      // Invalidate and refetch ALL attendance and earnings queries
+      await queryClient.invalidateQueries({
         queryKey: ['attendance'],
-        refetchType: 'active'
+        refetchType: 'all'
       });
+
+      await queryClient.invalidateQueries({
+        queryKey: ['salary'],
+        refetchType: 'all'
+      });
+
+      await queryClient.invalidateQueries({
+        queryKey: ['earnings'],
+        refetchType: 'all'
+      });
+
+      // Force refetch all active queries
+      await queryClient.refetchQueries({
+        queryKey: ['attendance'],
+        type: 'active'
+      });
+
+      await queryClient.refetchQueries({
+        queryKey: ['salary'],
+        type: 'active'
+      });
+
+      await queryClient.refetchQueries({
+        queryKey: ['earnings'],
+        type: 'active'
+      });
+
+      // Call user's onSuccess if provided
+      options?.onSuccess?.(data, variables, context);
     },
-    ...options,
+    onError: options?.onError,
+    onMutate: options?.onMutate,
+    onSettled: options?.onSettled,
   });
 };
 
@@ -45,20 +67,45 @@ export const useCheckOut = (
 
   return useMutation({
     mutationFn: ({ recordId, notes }) => attendanceMutations.checkOut(recordId, notes),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: attendanceKeys.today(userId) });
-      const now = new Date();
-      queryClient.invalidateQueries({
-        queryKey: attendanceKeys.monthlySummary(userId, now.getMonth(), now.getFullYear())
+    onSuccess: async (data, variables, context) => {
+      // Invalidate and refetch ALL attendance and earnings queries
+      await queryClient.invalidateQueries({
+        queryKey: ['attendance'],
+        refetchType: 'all'
       });
 
-      // Invalidate ALL attendance-related queries to ensure fresh data
-      queryClient.invalidateQueries({
-        queryKey: ['attendance'],
-        refetchType: 'active'
+      await queryClient.invalidateQueries({
+        queryKey: ['salary'],
+        refetchType: 'all'
       });
+
+      await queryClient.invalidateQueries({
+        queryKey: ['earnings'],
+        refetchType: 'all'
+      });
+
+      // Force refetch all active queries
+      await queryClient.refetchQueries({
+        queryKey: ['attendance'],
+        type: 'active'
+      });
+
+      await queryClient.refetchQueries({
+        queryKey: ['salary'],
+        type: 'active'
+      });
+
+      await queryClient.refetchQueries({
+        queryKey: ['earnings'],
+        type: 'active'
+      });
+
+      // Call user's onSuccess if provided
+      options?.onSuccess?.(data, variables, context);
     },
-    ...options,
+    onError: options?.onError,
+    onMutate: options?.onMutate,
+    onSettled: options?.onSettled,
   });
 };
 
@@ -83,27 +130,45 @@ export const useMarkAttendance = (
 
   return useMutation({
     mutationFn: (params) => attendanceMutations.markAttendance({ ...params, markedBy }),
-    onSuccess: (_, variables) => {
-      // Invalidate the affected user's queries
-      queryClient.invalidateQueries({ queryKey: attendanceKeys.today(variables.userId) });
-
-      // Invalidate ALL attendance-related queries to ensure fresh data
-      queryClient.invalidateQueries({
+    onSuccess: async (data, variables, context) => {
+      // Invalidate and refetch ALL attendance and earnings queries
+      await queryClient.invalidateQueries({
         queryKey: ['attendance'],
-        refetchType: 'active'
+        refetchType: 'all'
       });
 
-      // Invalidate monthly summary for the affected month
-      const date = new Date(variables.date);
-      queryClient.invalidateQueries({
-        queryKey: attendanceKeys.monthlySummary(
-          variables.userId,
-          date.getMonth(),
-          date.getFullYear()
-        )
+      await queryClient.invalidateQueries({
+        queryKey: ['salary'],
+        refetchType: 'all'
       });
+
+      await queryClient.invalidateQueries({
+        queryKey: ['earnings'],
+        refetchType: 'all'
+      });
+
+      // Force refetch all active queries
+      await queryClient.refetchQueries({
+        queryKey: ['attendance'],
+        type: 'active'
+      });
+
+      await queryClient.refetchQueries({
+        queryKey: ['salary'],
+        type: 'active'
+      });
+
+      await queryClient.refetchQueries({
+        queryKey: ['earnings'],
+        type: 'active'
+      });
+
+      // Call user's onSuccess if provided
+      options?.onSuccess?.(data, variables, context);
     },
-    ...options,
+    onError: options?.onError,
+    onMutate: options?.onMutate,
+    onSettled: options?.onSettled,
   });
 };
 
@@ -130,17 +195,45 @@ export const useUpdateAttendance = (
 
   return useMutation({
     mutationFn: ({ recordId, updates }) => attendanceMutations.updateAttendance(recordId, updates),
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: attendanceKeys.today(userId) });
-      queryClient.invalidateQueries({ queryKey: attendanceKeys.byId(variables.recordId) });
-
-      // Invalidate ALL attendance-related queries to ensure fresh data
-      queryClient.invalidateQueries({
+    onSuccess: async (data, variables, context) => {
+      // Invalidate and refetch ALL attendance and earnings queries
+      await queryClient.invalidateQueries({
         queryKey: ['attendance'],
-        refetchType: 'active'
+        refetchType: 'all'
       });
+
+      await queryClient.invalidateQueries({
+        queryKey: ['salary'],
+        refetchType: 'all'
+      });
+
+      await queryClient.invalidateQueries({
+        queryKey: ['earnings'],
+        refetchType: 'all'
+      });
+
+      // Force refetch all active queries
+      await queryClient.refetchQueries({
+        queryKey: ['attendance'],
+        type: 'active'
+      });
+
+      await queryClient.refetchQueries({
+        queryKey: ['salary'],
+        type: 'active'
+      });
+
+      await queryClient.refetchQueries({
+        queryKey: ['earnings'],
+        type: 'active'
+      });
+
+      // Call user's onSuccess if provided
+      options?.onSuccess?.(data, variables, context);
     },
-    ...options,
+    onError: options?.onError,
+    onMutate: options?.onMutate,
+    onSettled: options?.onSettled,
   });
 };
 

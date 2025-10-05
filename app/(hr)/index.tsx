@@ -3,7 +3,6 @@ import { View, Text, StyleSheet, ScrollView, ActivityIndicator, StatusBar, Touch
 import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
 import { useAuth } from '@/hooks/auth/useAuth';
 import { useHRAllEmployeesAttendance } from '@/hooks/queries/useAttendance';
-import { useHRPendingSalaries } from '@/hooks/queries/useSalary';
 import { useHRPendingLeaveRequests } from '@/hooks/queries/useLeave';
 import { useAllUsers } from '@/hooks/queries/useUser';
 import { formatDate, formatDateToISO } from '@/lib/utils/date.utils';
@@ -16,7 +15,6 @@ export default function HRDashboard() {
   const today = formatDateToISO(new Date());
 
   const { data: todayAttendance, isLoading: loadingAttendance, refetch: refetchAttendance } = useHRAllEmployeesAttendance({ date: today });
-  const { data: pendingSalaries, isLoading: loadingSalaries, refetch: refetchSalaries } = useHRPendingSalaries();
   const { data: pendingLeaves, isLoading: loadingLeaves, refetch: refetchLeaves } = useHRPendingLeaveRequests();
   const { data: allUsers, isLoading: loadingUsers, refetch: refetchUsers } = useAllUsers();
 
@@ -25,7 +23,6 @@ export default function HRDashboard() {
     try {
       await Promise.all([
         refetchAttendance(),
-        refetchSalaries(),
         refetchLeaves(),
         refetchUsers(),
       ]);
@@ -73,7 +70,11 @@ export default function HRDashboard() {
         <View style={styles.content}>
           {/* Overview Stats */}
           <View style={styles.statsRow}>
-            <View style={styles.statCard}>
+            <TouchableOpacity
+              style={styles.statCard}
+              onPress={() => router.push('/(hr)/employees')}
+              activeOpacity={0.7}
+            >
               {loadingUsers ? (
                 <ActivityIndicator size="small" color="#6366F1" />
               ) : (
@@ -85,9 +86,13 @@ export default function HRDashboard() {
                   <Text style={styles.statLabel}>Active Employees</Text>
                 </>
               )}
-            </View>
+            </TouchableOpacity>
 
-            <View style={styles.statCard}>
+            <TouchableOpacity
+              style={styles.statCard}
+              onPress={() => router.push('/(hr)/attendance')}
+              activeOpacity={0.7}
+            >
               {loadingAttendance ? (
                 <ActivityIndicator size="small" color="#6366F1" />
               ) : (
@@ -99,7 +104,7 @@ export default function HRDashboard() {
                   <Text style={styles.statLabel}>Present Today</Text>
                 </>
               )}
-            </View>
+            </TouchableOpacity>
           </View>
 
           {/* Pending Actions */}
@@ -113,13 +118,17 @@ export default function HRDashboard() {
               </View>
             </View>
 
-            {loadingLeaves || loadingSalaries ? (
+            {loadingLeaves ? (
               <View style={styles.loadingContainer}>
                 <ActivityIndicator size="small" color="#6366F1" />
               </View>
             ) : (
               <View style={styles.pendingList}>
-                <View style={styles.pendingItem}>
+                <TouchableOpacity
+                  style={styles.pendingItem}
+                  onPress={() => router.push('/(hr)/leave')}
+                  activeOpacity={0.7}
+                >
                   <View style={styles.pendingIconWrapper}>
                     <View style={styles.pendingIconBg}>
                       <MaterialCommunityIcons name="beach" size={24} color="#F59E0B" />
@@ -132,30 +141,17 @@ export default function HRDashboard() {
                   <View style={styles.pendingBadge}>
                     <Text style={styles.pendingCount}>{pendingLeaves?.length || 0}</Text>
                   </View>
-                </View>
-
-                <View style={styles.divider} />
-
-                <View style={styles.pendingItem}>
-                  <View style={styles.pendingIconWrapper}>
-                    <View style={styles.pendingIconBgSalary}>
-                      <MaterialCommunityIcons name="currency-usd" size={24} color="#8B5CF6" />
-                    </View>
-                  </View>
-                  <View style={styles.pendingContent}>
-                    <Text style={styles.pendingText}>Salary Approvals</Text>
-                    <Text style={styles.pendingSubtext}>Awaiting review</Text>
-                  </View>
-                  <View style={styles.pendingBadge}>
-                    <Text style={styles.pendingCount}>{pendingSalaries?.length || 0}</Text>
-                  </View>
-                </View>
+                </TouchableOpacity>
               </View>
             )}
           </View>
 
           {/* Today's Attendance Summary */}
-          <View style={styles.card}>
+          <TouchableOpacity
+            style={styles.card}
+            onPress={() => router.push('/(hr)/attendance')}
+            activeOpacity={0.7}
+          >
             <View style={styles.cardHeader}>
               <View style={styles.cardHeaderLeft}>
                 <View style={styles.iconContainer}>
@@ -196,10 +192,14 @@ export default function HRDashboard() {
                 <Text style={styles.emptyStateText}>No attendance records for today</Text>
               </View>
             )}
-          </View>
+          </TouchableOpacity>
 
           {/* Quick Stats */}
-          <View style={styles.card}>
+          <TouchableOpacity
+            style={styles.card}
+            onPress={() => router.push('/(hr)/employees')}
+            activeOpacity={0.7}
+          >
             <View style={styles.cardHeader}>
               <View style={styles.cardHeaderLeft}>
                 <View style={styles.iconContainer}>
@@ -254,7 +254,7 @@ export default function HRDashboard() {
                 </View>
               </View>
             </View>
-          </View>
+          </TouchableOpacity>
         </View>
       </ScrollView>
     </View>

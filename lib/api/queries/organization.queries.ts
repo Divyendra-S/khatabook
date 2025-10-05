@@ -133,4 +133,36 @@ export const organizationQueries = {
     const departments = [...new Set(data?.map(u => u.department).filter(Boolean))];
     return departments as string[];
   },
+
+  /**
+   * Get next employee ID for organization
+   */
+  getNextEmployeeId: async (organizationId: string): Promise<string> => {
+    const { data, error } = await supabase
+      .from('users')
+      .select('employee_id')
+      .eq('organization_id', organizationId)
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    if (error) throw error;
+
+    // If no employees exist, start with EMP001
+    if (!data || data.length === 0) {
+      return 'EMP001';
+    }
+
+    // Extract number from last employee ID and increment
+    const lastEmployeeId = data[0].employee_id || 'EMP000';
+    const match = lastEmployeeId.match(/(\d+)$/);
+
+    if (match) {
+      const lastNumber = parseInt(match[1], 10);
+      const nextNumber = lastNumber + 1;
+      return `EMP${nextNumber.toString().padStart(3, '0')}`;
+    }
+
+    // Fallback if no number found
+    return 'EMP001';
+  },
 };

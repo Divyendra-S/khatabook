@@ -1,22 +1,84 @@
-import { useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, RefreshControl } from 'react-native';
+import { useState, useMemo } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, RefreshControl, TextInput, ScrollView, Platform } from 'react-native';
 import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
 import { useHRAllEmployeesAttendance } from '@/hooks/queries/useAttendance';
-import { formatDate, formatTime, formatDateToISO } from '@/lib/utils/date.utils';
-import { formatHours, getAttendanceStatus } from '@/lib/utils/attendance.utils';
-import { AttendanceWithUser, AttendanceRecord } from '@/lib/types';
+import { formatDateToISO } from '@/lib/utils/date.utils';
+import { getAttendanceStatus } from '@/lib/utils/attendance.utils';
+import { AttendanceRecord } from '@/lib/types';
 import MarkAttendanceModal from '@/components/attendance/MarkAttendanceModal';
+import AttendanceStatsCards from '@/components/attendance/AttendanceStatsCards';
+import AttendanceTable, { AttendanceTableHeader } from '@/components/attendance/AttendanceTable';
+import { useAllUsers } from '@/hooks/queries/useUser';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+type StatusFilter = 'all' | 'present' | 'absent' | 'incomplete';
+type SortField = 'name' | 'checkIn' | 'checkOut' | 'hours';
+type SortOrder = 'asc' | 'desc';
 
 export default function HRAttendanceScreen() {
+  const insets = useSafeAreaInsets();
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [refreshing, setRefreshing] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<AttendanceRecord | undefined>(undefined);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [sortField, setSortField] = useState<SortField>('name');
+  const [sortOrder, setSortOrder] = useState<SortOrder>('asc');
+
   const targetDate = formatDateToISO(selectedDate);
 
   const { data: records, isLoading, refetch } = useHRAllEmployeesAttendance({
     date: targetDate,
   });
+
+  const { data: allEmployees } = useAllUsers({
+    role: 'employee',
+    isActive: true,
+  });
+
+  // Calculate statistics
+  const stats = useMemo(() => {
+    const totalEmployees = allEmployees?.length || 0;
+    const presentCount = records?.filter(r => getAttendanceStatus(r) === 'Present').length || 0;
+    const totalHours = records?.reduce((sum, r) => sum + (r.total_hours || 0), 0) || 0;
+    const averageHours = records && records.length > 0 ? totalHours / records.length : 0;
+    const absentCount = totalEmployees - (records?.length || 0);
+
+    return {
+      totalEmployees,
+      presentCount,
+      absentCount,
+      averageHours,
+    };
+  }, [records, allEmployees]);
+
+  // Filter records
+  const filteredRecords = useMemo(() => {
+    if (!records) return [];
+
+    let filtered = [...records];
+
+    // Apply search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(
+        (r) =>
+          r.user?.full_name?.toLowerCase().includes(query) ||
+          r.user?.employee_id?.toLowerCase().includes(query)
+      );
+    }
+
+    // Apply status filter
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter((r) => {
+        const status = getAttendanceStatus(r).toLowerCase();
+        return status === statusFilter;
+      });
+    }
+
+    return filtered;
+  }, [records, searchQuery, statusFilter]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -37,81 +99,13 @@ export default function HRAttendanceScreen() {
     setModalVisible(true);
   };
 
-  const renderAttendanceItem = ({ item }: { item: AttendanceWithUser }) => {
-    const status = getAttendanceStatus(item);
-    const statusColors = {
-      Present: { bg: '#DCFCE7', color: '#10B981', icon: 'checkmark-circle' },
-      Incomplete: { bg: '#FEF3C7', color: '#F59E0B', icon: 'time-outline' },
-      Absent: { bg: '#FEE2E2', color: '#EF4444', icon: 'close-circle' },
-    };
-    const statusConfig = statusColors[status as keyof typeof statusColors] || statusColors.Present;
-
-    return (
-      <TouchableOpacity style={styles.card} onPress={() => handleEditAttendance(item as AttendanceRecord)} activeOpacity={0.7}>
-        <View style={styles.cardHeader}>
-          <View style={styles.cardHeaderLeft}>
-            <View style={[styles.dateIconWrapper, { backgroundColor: statusConfig.bg }]}>
-              <Ionicons name={statusConfig.icon as any} size={24} color={statusConfig.color} />
-            </View>
-            <View>
-              <Text style={styles.employeeName}>{item.user?.full_name || 'Unknown'}</Text>
-              <Text style={styles.employeeId}>ID: {item.user?.employee_id}</Text>
-            </View>
-          </View>
-          <View style={[styles.statusBadge, { backgroundColor: statusConfig.bg }]}>
-            <Text style={[styles.statusText, { color: statusConfig.color }]}>{status}</Text>
-          </View>
-        </View>
-
-        <Text style={styles.date}>{formatDate(new Date(item.date))}</Text>
-
-        <View style={styles.timeContainer}>
-          <View style={styles.timeItem}>
-            <Ionicons name="log-in-outline" size={18} color="#10B981" />
-            <View>
-              <Text style={styles.timeLabel}>Check-in</Text>
-              <Text style={styles.timeValue}>
-                {item.check_in_time ? formatTime(new Date(item.check_in_time)) : '--:--'}
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.timeDivider} />
-
-          <View style={styles.timeItem}>
-            <Ionicons name="log-out-outline" size={18} color="#EF4444" />
-            <View>
-              <Text style={styles.timeLabel}>Check-out</Text>
-              <Text style={styles.timeValue}>
-                {item.check_out_time ? formatTime(new Date(item.check_out_time)) : '--:--'}
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.timeDivider} />
-
-          <View style={styles.timeItem}>
-            <Ionicons name="timer-outline" size={18} color="#6366F1" />
-            <View>
-              <Text style={styles.timeLabel}>Hours</Text>
-              <Text style={[styles.timeValue, styles.hoursValue]}>
-                {item.total_hours ? formatHours(item.total_hours) : '--'}
-              </Text>
-            </View>
-          </View>
-        </View>
-
-        {item.notes && (
-          <View style={styles.notesContainer}>
-            <View style={styles.notesHeader}>
-              <Feather name="file-text" size={16} color="#64748B" />
-              <Text style={styles.notesLabel}>Notes</Text>
-            </View>
-            <Text style={styles.notesText}>{item.notes}</Text>
-          </View>
-        )}
-      </TouchableOpacity>
-    );
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortOrder('asc');
+    }
   };
 
   const previousDay = () => {
@@ -139,81 +133,192 @@ export default function HRAttendanceScreen() {
   const isToday =
     selectedDate.toDateString() === new Date().toDateString();
 
+  const statusFilterOptions = [
+    { value: 'all' as StatusFilter, label: 'All', count: records?.length || 0 },
+    { value: 'present' as StatusFilter, label: 'Present', count: stats.presentCount },
+    {
+      value: 'incomplete' as StatusFilter,
+      label: 'Incomplete',
+      count: records?.filter(r => getAttendanceStatus(r) === 'Incomplete').length || 0,
+    },
+    {
+      value: 'absent' as StatusFilter,
+      label: 'Absent',
+      count: stats.absentCount,
+    },
+  ];
+
   return (
-    <View style={styles.container}>
-      <View style={styles.headerActions}>
-        <TouchableOpacity
-          style={styles.markButton}
-          onPress={handleMarkAttendance}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="add-circle" size={20} color="#FFFFFF" />
-          <Text style={styles.markButtonText}>Mark Attendance</Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.monthSelector}>
-        <TouchableOpacity
-          onPress={previousDay}
-          style={styles.monthButton}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="chevron-back" size={24} color="#6366F1" />
-        </TouchableOpacity>
-
-        <View style={styles.monthTextContainer}>
-          <MaterialCommunityIcons name="calendar-today" size={20} color="#6366F1" />
-          <Text style={styles.monthText}>
-            {selectedDate.toLocaleDateString('en-US', {
-              weekday: 'short',
-              month: 'short',
-              day: 'numeric',
-              year: 'numeric'
-            })}
-          </Text>
-        </View>
-
-        <TouchableOpacity
-          onPress={nextDay}
-          style={[styles.monthButton, isToday && styles.monthButtonDisabled]}
-          disabled={isToday}
-          activeOpacity={0.7}
-        >
-          <Ionicons
-            name="chevron-forward"
-            size={24}
-            color={isToday ? '#CBD5E1' : '#6366F1'}
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <ScrollView
+        style={styles.scrollView}
+        showsVerticalScrollIndicator={false}
+        stickyHeaderIndices={[5]}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={['#6366F1']}
+            tintColor="#6366F1"
           />
-        </TouchableOpacity>
-      </View>
+        }
+      >
+        {/* Header Bar */}
+        <View style={styles.headerBar}>
+          <Text style={styles.headerTitle}>Attendance</Text>
+          <TouchableOpacity
+            style={styles.markButton}
+            onPress={handleMarkAttendance}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="add-circle" size={20} color="#FFFFFF" />
+            <Text style={styles.markButtonText}>Mark Attendance</Text>
+          </TouchableOpacity>
+        </View>
 
-      {isLoading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#6366F1" />
-        </View>
-      ) : records && records.length > 0 ? (
-        <FlatList
-          data={records}
-          renderItem={renderAttendanceItem}
-          keyExtractor={item => item.id}
-          contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              colors={['#6366F1']}
-              tintColor="#6366F1"
+        {/* Date Selector */}
+        <View style={styles.monthSelector}>
+          <TouchableOpacity
+            onPress={previousDay}
+            style={styles.monthButton}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="chevron-back" size={24} color="#6366F1" />
+          </TouchableOpacity>
+
+          <View style={styles.monthTextContainer}>
+            <MaterialCommunityIcons name="calendar-today" size={20} color="#6366F1" />
+            <Text style={styles.monthText}>
+              {selectedDate.toLocaleDateString('en-US', {
+                weekday: 'short',
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric'
+              })}
+            </Text>
+          </View>
+
+          <TouchableOpacity
+            onPress={nextDay}
+            style={[styles.monthButton, isToday && styles.monthButtonDisabled]}
+            disabled={isToday}
+            activeOpacity={0.7}
+          >
+            <Ionicons
+              name="chevron-forward"
+              size={24}
+              color={isToday ? '#CBD5E1' : '#6366F1'}
             />
-          }
-        />
-      ) : (
-        <View style={styles.emptyContainer}>
-          <Feather name="calendar" size={64} color="#CBD5E1" />
-          <Text style={styles.emptyText}>No employees found</Text>
-          <Text style={styles.emptySubtext}>Add employees to track their attendance</Text>
+          </TouchableOpacity>
         </View>
-      )}
+
+        {/* Statistics Cards */}
+        <AttendanceStatsCards
+          totalEmployees={stats.totalEmployees}
+          presentCount={stats.presentCount}
+          absentCount={stats.absentCount}
+          averageHours={stats.averageHours}
+        />
+
+        {/* Search and Filters */}
+        <View style={styles.filtersContainer}>
+          {/* Search Bar */}
+          <View style={styles.searchBar}>
+            <Ionicons name="search" size={20} color="#64748B" />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search by name or ID..."
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              placeholderTextColor="#94A3B8"
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity onPress={() => setSearchQuery('')}>
+                <Ionicons name="close-circle" size={20} color="#94A3B8" />
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {/* Status Filter Chips */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.filterChips}
+            contentContainerStyle={styles.filterChipsContent}
+          >
+            {statusFilterOptions.map((option) => (
+              <TouchableOpacity
+                key={option.value}
+                style={[
+                  styles.filterChip,
+                  statusFilter === option.value && styles.filterChipActive,
+                ]}
+                onPress={() => setStatusFilter(option.value)}
+                activeOpacity={0.7}
+              >
+                <Text
+                  style={[
+                    styles.filterChipText,
+                    statusFilter === option.value && styles.filterChipTextActive,
+                  ]}
+                >
+                  {option.label}
+                </Text>
+                <View
+                  style={[
+                    styles.filterChipBadge,
+                    statusFilter === option.value && styles.filterChipBadgeActive,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.filterChipBadgeText,
+                      statusFilter === option.value && styles.filterChipBadgeTextActive,
+                    ]}
+                  >
+                    {option.count}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+
+        {/* Sticky Table Header - Index 5 */}
+        <AttendanceTableHeader
+          sortField={sortField}
+          sortOrder={sortOrder}
+          onSort={handleSort}
+        />
+
+        {/* Table Content */}
+        {isLoading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#6366F1" />
+          </View>
+        ) : filteredRecords && filteredRecords.length > 0 ? (
+          <AttendanceTable
+            data={filteredRecords}
+            onEdit={handleEditAttendance}
+            sortField={sortField}
+            sortOrder={sortOrder}
+          />
+        ) : (
+          <View style={styles.emptyContainer}>
+            <Feather name="users" size={64} color="#CBD5E1" />
+            <Text style={styles.emptyText}>
+              {searchQuery || statusFilter !== 'all'
+                ? 'No matching records'
+                : 'No attendance records'}
+            </Text>
+            <Text style={styles.emptySubtext}>
+              {searchQuery || statusFilter !== 'all'
+                ? 'Try adjusting your filters'
+                : 'Mark attendance to see records here'}
+            </Text>
+          </View>
+        )}
+      </ScrollView>
 
       <MarkAttendanceModal
         visible={modalVisible}
@@ -232,22 +337,33 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F8FAFC',
   },
-  headerActions: {
+  scrollView: {
+    flex: 1,
+  },
+  headerBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     backgroundColor: '#FFFFFF',
     paddingHorizontal: 20,
-    paddingVertical: 12,
+    paddingVertical: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#E2E8F0',
+  },
+  headerTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#0F172A',
   },
   markButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#6366F1',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
     borderRadius: 12,
-    gap: 8,
+    gap: 6,
     shadowColor: '#6366F1',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
@@ -255,7 +371,7 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   markButtonText: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '600',
     color: '#FFFFFF',
   },
@@ -266,11 +382,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     paddingHorizontal: 20,
     paddingVertical: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 3,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
   },
   monthButton: {
     width: 44,
@@ -288,130 +401,83 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    flex: 1,
+    justifyContent: 'center',
   },
   monthText: {
     fontSize: 17,
     fontWeight: '700',
     color: '#0F172A',
   },
-  listContent: {
-    padding: 20,
-    paddingBottom: 32,
-  },
-  card: {
+  filtersContainer: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 20,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    elevation: 3,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
   },
-  cardHeader: {
+  searchBar: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 12,
     marginBottom: 12,
   },
-  cardHeaderLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
+  searchInput: {
     flex: 1,
-  },
-  dateIconWrapper: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  employeeName: {
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: 15,
     color: '#0F172A',
   },
-  employeeId: {
-    fontSize: 12,
-    color: '#64748B',
-    fontWeight: '500',
-    marginTop: 2,
+  filterChips: {
+    marginTop: 4,
   },
-  date: {
-    fontSize: 14,
-    color: '#64748B',
-    fontWeight: '500',
-    marginBottom: 16,
+  filterChipsContent: {
+    gap: 8,
   },
-  statusBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-  },
-  statusText: {
-    fontSize: 12,
-    fontWeight: '600',
-    textTransform: 'capitalize',
-  },
-  timeContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#F8FAFC',
-    padding: 14,
-    borderRadius: 12,
-  },
-  timeItem: {
+  filterChip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    flex: 1,
+    backgroundColor: '#F8FAFC',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
-  timeDivider: {
-    width: 1,
-    height: 32,
-    backgroundColor: '#E2E8F0',
-    marginHorizontal: 8,
+  filterChipActive: {
+    backgroundColor: '#6366F1',
+    borderColor: '#6366F1',
   },
-  timeLabel: {
-    fontSize: 11,
-    color: '#64748B',
-    fontWeight: '500',
-    marginBottom: 2,
-  },
-  timeValue: {
+  filterChipText: {
     fontSize: 14,
-    fontWeight: '700',
-    color: '#0F172A',
-  },
-  hoursValue: {
-    color: '#6366F1',
-  },
-  notesContainer: {
-    marginTop: 16,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
-  },
-  notesHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 8,
-  },
-  notesLabel: {
-    fontSize: 13,
-    color: '#64748B',
     fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    color: '#64748B',
   },
-  notesText: {
-    fontSize: 14,
-    color: '#334155',
-    lineHeight: 20,
+  filterChipTextActive: {
+    color: '#FFFFFF',
+  },
+  filterChipBadge: {
+    backgroundColor: '#E2E8F0',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    minWidth: 24,
+    alignItems: 'center',
+  },
+  filterChipBadgeActive: {
+    backgroundColor: '#818CF8',
+  },
+  filterChipBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  filterChipBadgeTextActive: {
+    color: '#FFFFFF',
   },
   loadingContainer: {
     flex: 1,

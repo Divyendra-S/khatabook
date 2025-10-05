@@ -12,6 +12,7 @@ export const organizationKeys = {
   employees: (id: string, filters?: object) => [...organizationKeys.all, 'employees', id, filters] as const,
   stats: (id: string) => [...organizationKeys.all, 'stats', id] as const,
   departments: (id: string) => [...organizationKeys.all, 'departments', id] as const,
+  nextEmployeeId: (id: string) => [...organizationKeys.all, 'nextEmployeeId', id] as const,
 };
 
 /**
@@ -92,6 +93,22 @@ export const useOrganizationDepartments = (
     queryKey: organizationKeys.departments(organizationId),
     queryFn: () => organizationQueries.getOrganizationDepartments(organizationId),
     staleTime: 1000 * 60 * 10,
+    enabled: !!organizationId,
+    ...options,
+  });
+};
+
+/**
+ * Hook to get next employee ID for organization
+ */
+export const useNextEmployeeId = (
+  organizationId: string,
+  options?: Omit<UseQueryOptions<string>, 'queryKey' | 'queryFn'>
+) => {
+  return useQuery({
+    queryKey: organizationKeys.nextEmployeeId(organizationId),
+    queryFn: () => organizationQueries.getNextEmployeeId(organizationId),
+    staleTime: 0, // Always fetch fresh to avoid duplicate IDs
     enabled: !!organizationId,
     ...options,
   });

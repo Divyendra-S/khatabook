@@ -75,6 +75,7 @@ export default function HRLayout() {
         name="attendance"
         options={{
           title: 'Attendance',
+          headerShown: false,
           tabBarIcon: ({ color, focused }) => (
             <MaterialCommunityIcons
               name={focused ? 'calendar-clock' : 'calendar-clock-outline'}

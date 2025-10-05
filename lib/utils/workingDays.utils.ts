@@ -92,6 +92,27 @@ export const calculateCurrentMonthlyTotalHours = (
 };
 
 /**
+ * Calculate average monthly hours across all 12 months
+ */
+export const calculateAverageMonthlyHours = (
+  workingDays: WeekDay[],
+  dailyHours: number,
+  year?: number
+): number => {
+  const targetYear = year || new Date().getFullYear();
+  let totalHours = 0;
+
+  // Calculate hours for all 12 months
+  for (let month = 0; month < 12; month++) {
+    const monthlyHours = calculateMonthlyTotalHours(workingDays, dailyHours, month, targetYear);
+    totalHours += monthlyHours;
+  }
+
+  // Return average
+  return totalHours / 12;
+};
+
+/**
  * Calculate hourly rate
  */
 export const calculateHourlyRate = (

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,8 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuth } from '@/hooks/auth/useAuth';
@@ -18,6 +20,8 @@ import { AttendanceRecord, User } from '@/lib/types';
 import DatePicker from '@/components/ui/DatePicker';
 import TimePicker from '@/components/ui/TimePicker';
 import { useQueryClient } from '@tanstack/react-query';
+import { isWorkingDay, getWeekdayShortName } from '@/lib/utils/workingDays.utils';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface MarkAttendanceModalProps {
   visible: boolean;
@@ -32,6 +36,7 @@ export default function MarkAttendanceModal({
   existingRecord,
   employeeId,
 }: MarkAttendanceModalProps) {
+  const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const { data: employees } = useAllUsers({ role: 'employee' });
   const queryClient = useQueryClient();
@@ -129,6 +134,29 @@ export default function MarkAttendanceModal({
       return;
     }
 
+    // Check if date is a working day
+    if (!isSelectedDateWorkingDay) {
+      Alert.alert(
+        'Off Day',
+        'The selected date is not a working day for this employee. Do you still want to mark attendance?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Continue', onPress: () => proceedWithSubmit() },
+        ]
+      );
+      return;
+    }
+
+    // Check for negative duration
+    if (hoursPreview !== null && hoursPreview < 0) {
+      Alert.alert('Invalid Time', 'Check-out time cannot be before check-in time');
+      return;
+    }
+
+    proceedWithSubmit();
+  };
+
+  const proceedWithSubmit = () => {
     // Convert local time to UTC ISO format
     const [checkInHour, checkInMinute] = formData.checkInTime.split(':');
     const checkInDate = new Date(formData.date);
@@ -171,12 +199,42 @@ export default function MarkAttendanceModal({
     e.employee_id?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  // Check if selected date is a working day
+  const isSelectedDateWorkingDay = useMemo(() => {
+    if (!selectedEmployee || !formData.date) return true;
+    const workingDays = selectedEmployee.working_days || [];
+    const selectedDate = new Date(formData.date);
+    return isWorkingDay(selectedDate, workingDays);
+  }, [selectedEmployee, formData.date]);
+
+  // Calculate hours preview
+  const hoursPreview = useMemo(() => {
+    if (!formData.checkInTime || !formData.checkOutTime) return null;
+
+    const [checkInHour, checkInMinute] = formData.checkInTime.split(':').map(Number);
+    const [checkOutHour, checkOutMinute] = formData.checkOutTime.split(':').map(Number);
+
+    const checkInDate = new Date(formData.date);
+    checkInDate.setHours(checkInHour, checkInMinute, 0, 0);
+
+    const checkOutDate = new Date(formData.date);
+    checkOutDate.setHours(checkOutHour, checkOutMinute, 0, 0);
+
+    const diffMs = checkOutDate.getTime() - checkInDate.getTime();
+    const hours = diffMs / (1000 * 60 * 60);
+
+    return hours;
+  }, [formData.checkInTime, formData.checkOutTime, formData.date]);
+
   const isLoading = markMutation.isPending || updateMutation.isPending;
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalContainer}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.modalOverlay}
+      >
+        <View style={[styles.modalContainer, { paddingBottom: Math.max(insets.bottom, 20) }]}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>
               {existingRecord ? 'Edit Attendance' : 'Mark Attendance'}
@@ -186,7 +244,11 @@ export default function MarkAttendanceModal({
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
+          <ScrollView
+            style={styles.modalContent}
+            contentContainerStyle={styles.modalContentContainer}
+            showsVerticalScrollIndicator={false}
+          >
             {/* Employee Selection */}
             {!existingRecord && !employeeId && (
               <View style={styles.inputGroup}>
@@ -276,6 +338,61 @@ export default function MarkAttendanceModal({
               iconColor="#EF4444"
             />
 
+            {/* Hours Preview */}
+            {hoursPreview !== null && (
+              <View style={[
+                styles.previewCard,
+                hoursPreview < 0 ? styles.previewCardError : styles.previewCardSuccess
+              ]}>
+                <Ionicons
+                  name={hoursPreview < 0 ? "alert-circle" : "time"}
+                  size={20}
+                  color={hoursPreview < 0 ? "#EF4444" : "#6366F1"}
+                />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.previewLabel}>Total Hours</Text>
+                  <Text style={[
+                    styles.previewValue,
+                    hoursPreview < 0 && styles.previewValueError
+                  ]}>
+                    {hoursPreview < 0 ? 'Invalid time range' : `${hoursPreview.toFixed(2)} hours`}
+                  </Text>
+                </View>
+              </View>
+            )}
+
+            {/* Working Days Info & Warning */}
+            {selectedEmployee && (
+              <View style={styles.workingDaysInfo}>
+                <View style={styles.workingDaysHeader}>
+                  <MaterialCommunityIcons name="calendar-week" size={16} color="#64748B" />
+                  <Text style={styles.workingDaysLabel}>Working Days:</Text>
+                </View>
+                <View style={styles.workingDaysList}>
+                  {selectedEmployee.working_days?.map((day) => (
+                    <View key={day} style={styles.workingDayChip}>
+                      <Text style={styles.workingDayText}>
+                        {getWeekdayShortName(day)}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
+
+            {/* Off Day Warning */}
+            {!isSelectedDateWorkingDay && selectedEmployee && (
+              <View style={styles.warningCard}>
+                <Ionicons name="warning" size={20} color="#F59E0B" />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.warningTitle}>Off Day</Text>
+                  <Text style={styles.warningText}>
+                    This is not a working day for this employee
+                  </Text>
+                </View>
+              </View>
+            )}
+
             {/* Notes */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Notes</Text>
@@ -323,7 +440,7 @@ export default function MarkAttendanceModal({
             </TouchableOpacity>
           </ScrollView>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -338,7 +455,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    maxHeight: '90%',
+    maxHeight: '85%',
   },
   modalHeader: {
     flexDirection: 'row',
@@ -363,7 +480,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalContent: {
+    flex: 1,
+  },
+  modalContentContainer: {
     padding: 24,
+    paddingBottom: 100,
   },
   inputGroup: {
     marginBottom: 20,
@@ -488,5 +609,93 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: '#FFFFFF',
+  },
+  previewCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 14,
+    borderRadius: 12,
+    marginBottom: 20,
+  },
+  previewCardSuccess: {
+    backgroundColor: '#EEF2FF',
+    borderWidth: 1,
+    borderColor: '#C7D2FE',
+  },
+  previewCardError: {
+    backgroundColor: '#FEE2E2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+  },
+  previewLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#64748B',
+    marginBottom: 4,
+  },
+  previewValue: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#6366F1',
+  },
+  previewValueError: {
+    color: '#EF4444',
+  },
+  workingDaysInfo: {
+    backgroundColor: '#F8FAFC',
+    padding: 14,
+    borderRadius: 12,
+    marginBottom: 16,
+  },
+  workingDaysHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 10,
+  },
+  workingDaysLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  workingDaysList: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  workingDayChip: {
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  workingDayText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#334155',
+  },
+  warningCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: '#FEF3C7',
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    marginBottom: 20,
+  },
+  warningTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#92400E',
+    marginBottom: 2,
+  },
+  warningText: {
+    fontSize: 12,
+    color: '#78350F',
   },
 });
