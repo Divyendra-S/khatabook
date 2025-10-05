@@ -1,18 +1,17 @@
 import { useState } from 'react';
-import { View, Text, StyleSheet, FlatList, ActivityIndicator, StatusBar, RefreshControl } from 'react-native';
-import { MaterialCommunityIcons, Feather } from '@expo/vector-icons';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, RefreshControl } from 'react-native';
+import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/hooks/auth/useAuth';
-import { useSalaryRecords } from '@/hooks/queries/useSalary';
+import { useCurrentMonthEarnings } from '@/hooks/queries/useEarnings';
 import { formatCurrency } from '@/lib/utils/salary.utils';
-import { formatDate } from '@/lib/utils/date.utils';
-import { SalaryRecord } from '@/lib/types';
+import { Colors, Typography, Spacing, BorderRadius, Shadows } from '@/constants/theme';
 
 export default function SalaryScreen() {
   const { user } = useAuth();
   const userId = user?.id || '';
   const [refreshing, setRefreshing] = useState(false);
 
-  const { data: salaryRecords, isLoading, refetch } = useSalaryRecords(userId);
+  const { data: currentEarnings, isLoading, refetch } = useCurrentMonthEarnings(userId);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -23,316 +22,227 @@ export default function SalaryScreen() {
     }
   };
 
-  const renderSalaryItem = ({ item }: { item: SalaryRecord }) => {
-    const statusConfig = {
-      paid: { bg: '#DCFCE7', color: '#10B981', icon: 'check-circle' },
-      approved: { bg: '#DBEAFE', color: '#3B82F6', icon: 'shield-check' },
-      pending: { bg: '#FEF3C7', color: '#F59E0B', icon: 'clock-outline' },
-      draft: { bg: '#F1F5F9', color: '#64748B', icon: 'file-document-outline' },
-    };
-    const config = statusConfig[item.status as keyof typeof statusConfig] || statusConfig.draft;
-
+  if (isLoading) {
     return (
-      <View style={styles.card}>
-        <View style={styles.cardHeader}>
-          <View style={styles.cardHeaderLeft}>
-            <View style={[styles.iconContainer, { backgroundColor: config.bg }]}>
-              <MaterialCommunityIcons name={config.icon as any} size={24} color={config.color} />
-            </View>
-            <View>
-              <Text style={styles.monthYear}>{item.month_year}</Text>
-              <Text style={styles.cardSubtext}>{item.days_worked} days worked</Text>
-            </View>
-          </View>
-          <View style={[styles.statusBadge, { backgroundColor: config.bg }]}>
-            <Text style={[styles.statusText, { color: config.color }]}>{item.status}</Text>
-          </View>
-        </View>
-
-        <View style={styles.amountContainer}>
-          <Text style={styles.amountLabel}>Total Amount</Text>
-          <Text style={styles.totalAmount}>{formatCurrency(item.total_salary)}</Text>
-        </View>
-
-        <View style={styles.detailsContainer}>
-          <View style={styles.detailRow}>
-            <View style={styles.detailRowLeft}>
-              <MaterialCommunityIcons name="cash" size={18} color="#64748B" />
-              <Text style={styles.detailLabel}>Base Salary</Text>
-            </View>
-            <Text style={styles.detailValue}>{formatCurrency(item.base_salary)}</Text>
-          </View>
-
-          {item.allowances > 0 && (
-            <>
-              <View style={styles.detailDivider} />
-              <View style={styles.detailRow}>
-                <View style={styles.detailRowLeft}>
-                  <MaterialCommunityIcons name="gift-outline" size={18} color="#64748B" />
-                  <Text style={styles.detailLabel}>Allowances</Text>
-                </View>
-                <Text style={[styles.detailValue, styles.positive]}>
-                  +{formatCurrency(item.allowances)}
-                </Text>
-              </View>
-            </>
-          )}
-
-          {item.bonus > 0 && (
-            <>
-              <View style={styles.detailDivider} />
-              <View style={styles.detailRow}>
-                <View style={styles.detailRowLeft}>
-                  <MaterialCommunityIcons name="star-outline" size={18} color="#64748B" />
-                  <Text style={styles.detailLabel}>Bonus</Text>
-                </View>
-                <Text style={[styles.detailValue, styles.positive]}>
-                  +{formatCurrency(item.bonus)}
-                </Text>
-              </View>
-            </>
-          )}
-
-          {item.deductions > 0 && (
-            <>
-              <View style={styles.detailDivider} />
-              <View style={styles.detailRow}>
-                <View style={styles.detailRowLeft}>
-                  <MaterialCommunityIcons name="minus-circle-outline" size={18} color="#64748B" />
-                  <Text style={styles.detailLabel}>Deductions</Text>
-                </View>
-                <Text style={[styles.detailValue, styles.negative]}>
-                  -{formatCurrency(item.deductions)}
-                </Text>
-              </View>
-            </>
-          )}
-
-          {item.status === 'paid' && item.paid_date && (
-            <>
-              <View style={styles.detailDivider} />
-              <View style={styles.detailRow}>
-                <View style={styles.detailRowLeft}>
-                  <MaterialCommunityIcons name="calendar-check" size={18} color="#64748B" />
-                  <Text style={styles.detailLabel}>Paid On</Text>
-                </View>
-                <Text style={styles.detailValue}>
-                  {formatDate(new Date(item.paid_date))}
-                </Text>
-              </View>
-            </>
-          )}
-        </View>
-
-        {item.notes && (
-          <View style={styles.notesContainer}>
-            <View style={styles.notesHeader}>
-              <Feather name="file-text" size={16} color="#64748B" />
-              <Text style={styles.notesLabel}>Notes</Text>
-            </View>
-            <Text style={styles.notesText}>{item.notes}</Text>
-          </View>
-        )}
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={Colors.primary} />
       </View>
     );
-  };
+  }
+
+  const baseSalary = user?.base_salary || 0;
+  const hourlyRate = user?.hourly_rate || 0;
+  const earnedSalary = currentEarnings?.earned_salary || 0;
+  const totalHoursWorked = currentEarnings?.total_hours_worked || 0;
+  const expectedHours = currentEarnings?.expected_hours || 0;
+
+  const currentMonth = new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+    <ScrollView
+      style={styles.container}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} />
+      }
+    >
+      {/* Header */}
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Salary Overview</Text>
+        <Text style={styles.headerSubtitle}>{currentMonth}</Text>
+      </View>
 
-      {isLoading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#6366F1" />
+      {/* Monthly Base Salary Card */}
+      <View style={styles.card}>
+        <View style={styles.cardIconWrapper}>
+          <View style={[styles.iconCircle, { backgroundColor: Colors.primary + '15' }]}>
+            <MaterialCommunityIcons name="cash-multiple" size={28} color={Colors.primary} />
+          </View>
         </View>
-      ) : salaryRecords && salaryRecords.length > 0 ? (
-        <FlatList
-          data={salaryRecords}
-          renderItem={renderSalaryItem}
-          keyExtractor={item => item.id}
-          contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              colors={['#6366F1']}
-              tintColor="#6366F1"
-            />
-          }
-        />
-      ) : (
-        <View style={styles.emptyContainer}>
-          <MaterialCommunityIcons name="receipt-text-outline" size={64} color="#CBD5E1" />
-          <Text style={styles.emptyText}>No salary records available</Text>
-          <Text style={styles.emptySubtext}>Your salary records will appear here</Text>
+        <View style={styles.cardContent}>
+          <Text style={styles.cardLabel}>Monthly Base Salary</Text>
+          <Text style={[styles.cardValue, { color: Colors.primary }]}>
+            {formatCurrency(baseSalary)}
+          </Text>
+          <Text style={styles.cardSubtext}>Fixed monthly compensation</Text>
         </View>
-      )}
-    </View>
+      </View>
+
+      {/* Hourly Rate Card */}
+      <View style={styles.card}>
+        <View style={styles.cardIconWrapper}>
+          <View style={[styles.iconCircle, { backgroundColor: Colors.secondary + '15' }]}>
+            <Ionicons name="time-outline" size={28} color={Colors.secondary} />
+          </View>
+        </View>
+        <View style={styles.cardContent}>
+          <Text style={styles.cardLabel}>Hourly Rate</Text>
+          <Text style={[styles.cardValue, { color: Colors.secondary }]}>
+            {formatCurrency(hourlyRate)}/hr
+          </Text>
+          <Text style={styles.cardSubtext}>Current month rate</Text>
+        </View>
+      </View>
+
+      {/* Earned Salary Till Now Card */}
+      <View style={styles.card}>
+        <View style={styles.cardIconWrapper}>
+          <View style={[styles.iconCircle, { backgroundColor: Colors.success + '15' }]}>
+            <MaterialCommunityIcons name="wallet-outline" size={28} color={Colors.success} />
+          </View>
+        </View>
+        <View style={styles.cardContent}>
+          <Text style={styles.cardLabel}>Earned This Month</Text>
+          <Text style={[styles.cardValue, { color: Colors.success }]}>
+            {formatCurrency(earnedSalary)}
+          </Text>
+          <View style={styles.progressInfo}>
+            <Text style={styles.cardSubtext}>
+              {totalHoursWorked.toFixed(1)} hrs worked
+              {expectedHours > 0 && ` of ${expectedHours.toFixed(1)} hrs expected`}
+            </Text>
+          </View>
+          {expectedHours > 0 && (
+            <View style={styles.progressBarContainer}>
+              <View style={styles.progressBarBackground}>
+                <View
+                  style={[
+                    styles.progressBarFill,
+                    {
+                      width: `${Math.min((totalHoursWorked / expectedHours) * 100, 100)}%`,
+                      backgroundColor: Colors.success,
+                    },
+                  ]}
+                />
+              </View>
+              <Text style={styles.progressPercentage}>
+                {Math.round((totalHoursWorked / expectedHours) * 100)}%
+              </Text>
+            </View>
+          )}
+        </View>
+      </View>
+
+      {/* Info Note */}
+      <View style={styles.infoBox}>
+        <Ionicons name="information-circle-outline" size={20} color={Colors.info} />
+        <Text style={styles.infoText}>
+          Your earned salary is calculated based on hours worked and your hourly rate. The final
+          salary will be processed at the end of the month.
+        </Text>
+      </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
-  },
-  listContent: {
-    padding: 20,
-    paddingBottom: 32,
-  },
-  card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 20,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    elevation: 3,
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  cardHeaderLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    flex: 1,
-  },
-  iconContainer: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  monthYear: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#0F172A',
-  },
-  cardSubtext: {
-    fontSize: 12,
-    color: '#64748B',
-    fontWeight: '500',
-    marginTop: 2,
-  },
-  statusBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-  },
-  statusText: {
-    fontSize: 12,
-    fontWeight: '600',
-    textTransform: 'capitalize',
-  },
-  amountContainer: {
-    backgroundColor: '#F0FDF4',
-    padding: 24,
-    borderRadius: 16,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#BBF7D0',
-    marginBottom: 20,
-  },
-  amountLabel: {
-    fontSize: 12,
-    color: '#64748B',
-    fontWeight: '600',
-    marginBottom: 8,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  totalAmount: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: '#10B981',
-  },
-  detailsContainer: {
-    gap: 0,
-  },
-  detailRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 12,
-  },
-  detailRowLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  detailLabel: {
-    fontSize: 14,
-    color: '#64748B',
-    fontWeight: '600',
-  },
-  detailValue: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#0F172A',
-  },
-  positive: {
-    color: '#10B981',
-  },
-  negative: {
-    color: '#EF4444',
-  },
-  detailDivider: {
-    height: 1,
-    backgroundColor: '#F1F5F9',
-  },
-  notesContainer: {
-    marginTop: 16,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
-  },
-  notesHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 8,
-  },
-  notesLabel: {
-    fontSize: 13,
-    color: '#64748B',
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  notesText: {
-    fontSize: 14,
-    color: '#334155',
-    lineHeight: 20,
+    backgroundColor: Colors.backgroundSecondary,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: Colors.backgroundSecondary,
   },
-  emptyContainer: {
-    flex: 1,
+  header: {
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing['2xl'],
+    paddingBottom: Spacing.lg,
+    backgroundColor: Colors.background,
+  },
+  headerTitle: {
+    fontSize: Typography.fontSize['2xl'],
+    fontWeight: Typography.fontWeight.bold,
+    color: Colors.text,
+    marginBottom: Spacing.xs,
+  },
+  headerSubtitle: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.textSecondary,
+    fontWeight: Typography.fontWeight.medium,
+  },
+  card: {
+    backgroundColor: Colors.background,
+    marginHorizontal: Spacing.lg,
+    marginTop: Spacing.lg,
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.lg,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    ...Shadows.md,
+  },
+  cardIconWrapper: {
+    marginRight: Spacing.md,
+  },
+  iconCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: BorderRadius.full,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 48,
-    gap: 16,
   },
-  emptyText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#64748B',
-    textAlign: 'center',
+  cardContent: {
+    flex: 1,
   },
-  emptySubtext: {
-    fontSize: 14,
-    color: '#94A3B8',
-    textAlign: 'center',
+  cardLabel: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.textSecondary,
+    fontWeight: Typography.fontWeight.medium,
+    marginBottom: Spacing.xs,
+  },
+  cardValue: {
+    fontSize: Typography.fontSize['3xl'],
+    fontWeight: Typography.fontWeight.bold,
+    marginBottom: Spacing.xs,
+  },
+  cardSubtext: {
+    fontSize: Typography.fontSize.xs,
+    color: Colors.textTertiary,
+    fontWeight: Typography.fontWeight.regular,
+  },
+  progressInfo: {
+    marginTop: Spacing.xs,
+  },
+  progressBarContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: Spacing.sm,
+  },
+  progressBarBackground: {
+    flex: 1,
+    height: 8,
+    backgroundColor: Colors.gray200,
+    borderRadius: BorderRadius.full,
+    overflow: 'hidden',
+    marginRight: Spacing.sm,
+  },
+  progressBarFill: {
+    height: '100%',
+    borderRadius: BorderRadius.full,
+  },
+  progressPercentage: {
+    fontSize: Typography.fontSize.xs,
+    fontWeight: Typography.fontWeight.semibold,
+    color: Colors.textSecondary,
+    minWidth: 40,
+  },
+  infoBox: {
+    flexDirection: 'row',
+    backgroundColor: Colors.info + '10',
+    marginHorizontal: Spacing.lg,
+    marginTop: Spacing.lg,
+    marginBottom: Spacing['2xl'],
+    padding: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: Colors.info + '30',
+  },
+  infoText: {
+    flex: 1,
+    fontSize: Typography.fontSize.xs,
+    color: Colors.textSecondary,
+    marginLeft: Spacing.sm,
+    lineHeight: 18,
   },
 });

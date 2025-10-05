@@ -1,9 +1,7 @@
-import { useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  FlatList,
   TouchableOpacity,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -51,51 +49,48 @@ export default function AttendanceTable({ data, onEdit, sortField, sortOrder }: 
     return 0;
   });
 
-  const renderTableRow = ({ item, index }: { item: AttendanceWithUser; index: number }) => {
-    return (
-      <TouchableOpacity
-        style={[
-          styles.tableRow,
-          index % 2 === 0 && styles.tableRowEven,
-        ]}
-        onPress={() => onEdit(item as AttendanceRecord)}
-        activeOpacity={0.7}
-      >
-        {/* Name */}
-        <View style={[styles.cell, styles.nameCell]}>
-          <Text style={styles.employeeName} numberOfLines={1}>
-            {item.user?.full_name || 'Unknown'}
-          </Text>
-        </View>
-
-        {/* Check-in */}
-        <View style={[styles.cell, styles.timeCell]}>
-          <Text style={styles.timeText}>
-            {item.check_in_time ? formatTime(new Date(item.check_in_time)) : '--:--'}
-          </Text>
-        </View>
-
-        {/* Check-out */}
-        <View style={[styles.cell, styles.timeCell]}>
-          <Text style={styles.timeText}>
-            {item.check_out_time ? formatTime(new Date(item.check_out_time)) : '--:--'}
-          </Text>
-        </View>
-
-        {/* Hours */}
-        <View style={[styles.cell, styles.hoursCell]}>
-          <Text style={styles.hoursText}>
-            {item.total_hours ? formatHours(item.total_hours) : '--'}
-          </Text>
-        </View>
-      </TouchableOpacity>
-    );
-  };
-
   return (
     <View style={styles.container}>
-      <View>
-        {sortedData.map((item, index) => renderTableRow({ item, index }))}
+      <View style={styles.tableContent}>
+        {sortedData.map((item, index) => (
+          <TouchableOpacity
+            key={item.id}
+            style={[
+              styles.tableRow,
+              index % 2 === 0 && styles.tableRowEven,
+            ]}
+            onPress={() => onEdit(item as AttendanceRecord)}
+            activeOpacity={0.7}
+          >
+            {/* Name */}
+            <View style={[styles.cell, styles.nameCell]}>
+              <Text style={styles.employeeName} numberOfLines={1}>
+                {item.user?.full_name || 'Unknown'}
+              </Text>
+            </View>
+
+            {/* Check-in */}
+            <View style={[styles.cell, styles.timeCell]}>
+              <Text style={styles.timeText}>
+                {item.check_in_time ? formatTime(new Date(item.check_in_time)) : '--:--'}
+              </Text>
+            </View>
+
+            {/* Check-out */}
+            <View style={[styles.cell, styles.timeCell]}>
+              <Text style={styles.timeText}>
+                {item.check_out_time ? formatTime(new Date(item.check_out_time)) : '--:--'}
+              </Text>
+            </View>
+
+            {/* Hours */}
+            <View style={[styles.cell, styles.hoursCell]}>
+              <Text style={styles.hoursText}>
+                {item.total_hours ? formatHours(item.total_hours) : '--'}
+              </Text>
+            </View>
+          </TouchableOpacity>
+        ))}
       </View>
     </View>
   );
@@ -170,6 +165,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F8FAFC',
   },
+  tableContent: {
+    paddingBottom: 20,
+  },
   tableHeader: {
     flexDirection: 'row',
     backgroundColor: '#FFFFFF',
@@ -189,9 +187,6 @@ const styles = StyleSheet.create({
     color: '#64748B',
     textTransform: 'uppercase',
     letterSpacing: 0.3,
-  },
-  listContent: {
-    paddingBottom: 20,
   },
   tableRow: {
     flexDirection: 'row',
