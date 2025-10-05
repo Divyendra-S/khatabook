@@ -20,7 +20,6 @@ export const useCreateEmployee = (
       email: string;
       password?: string;
       fullName: string;
-      employeeId: string;
       phone?: string;
       department?: string;
       designation?: string;

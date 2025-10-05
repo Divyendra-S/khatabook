@@ -53,18 +53,31 @@ serve(async (req) => {
     }
 
     // Get request body
+    const requestBody = await req.json()
+    console.log('Request body:', JSON.stringify(requestBody))
+
     const {
       email,
       password,
       fullName,
-      employeeId,
       phone,
       department,
       designation,
       role,
       dateOfJoining,
-      organizationId
-    } = await req.json()
+      organizationId,
+      baseSalary,
+      workingDays,
+      dailyWorkingHours
+    } = requestBody
+
+    // Validate required fields
+    if (!email || !fullName) {
+      return new Response(
+        JSON.stringify({ error: 'Missing required fields: email, fullName' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
 
     // Validate organization matches
     if (organizationId !== userData.organization_id) {
@@ -74,51 +87,131 @@ serve(async (req) => {
       )
     }
 
+    // Check for duplicate email
+    const { data: existingUsers, error: duplicateCheckError } = await supabaseAdmin
+      .from('users')
+      .select('email')
+      .eq('email', email)
+
+    // Ignore "no rows" error - that's what we want
+    if (duplicateCheckError && duplicateCheckError.code !== 'PGRST116') {
+      console.error('Duplicate check error:', duplicateCheckError)
+    }
+
+    if (existingUsers && existingUsers.length > 0) {
+      return new Response(
+        JSON.stringify({ error: 'An employee with this email already exists' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Use email as password if password not provided or empty
+    const actualPassword = password && password.trim() ? password.trim() : email
+
+    // Validate password strength (minimum 6 characters as per Supabase requirements)
+    if (actualPassword.length < 6) {
+      return new Response(
+        JSON.stringify({ error: 'Password must be at least 6 characters long' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    console.log('Creating user with email:', email, 'password length:', actualPassword.length)
+
     // Create auth user with metadata (trigger will create profile automatically)
     const { data: authData, error: createError } = await supabaseAdmin.auth.admin.createUser({
       email,
-      password,
+      password: actualPassword,
       email_confirm: true,
       user_metadata: {
         full_name: fullName,
-        employee_id: employeeId,
         phone: phone || null,
         role: role || 'employee',
       }
     })
 
     if (createError) {
+      console.error('Create user error:', createError)
+      let errorMessage = createError.message
+
+      // Provide more user-friendly error messages
+      if (errorMessage.includes('already registered')) {
+        errorMessage = 'This email is already registered'
+      } else if (errorMessage.includes('invalid email')) {
+        errorMessage = 'Please provide a valid email address'
+      } else if (errorMessage.includes('password')) {
+        errorMessage = 'Password must be at least 6 characters'
+      }
+
       return new Response(
-        JSON.stringify({ error: createError.message }),
+        JSON.stringify({ error: errorMessage }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
     if (!authData.user) {
+      console.error('No user in auth data')
       return new Response(
         JSON.stringify({ error: 'Failed to create auth user' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    // Wait a bit for trigger to complete
-    await new Promise(resolve => setTimeout(resolve, 100))
+    console.log('Auth user created:', authData.user.id)
+
+    // Wait for trigger to complete with retry logic
+    let profileExists = false
+    let retries = 0
+    const maxRetries = 10
+
+    while (!profileExists && retries < maxRetries) {
+      const { data: existingProfile } = await supabaseAdmin
+        .from('users')
+        .select('id')
+        .eq('id', authData.user.id)
+        .single()
+
+      if (existingProfile) {
+        profileExists = true
+        console.log('Profile found after', retries, 'retries')
+      } else {
+        retries++
+        await new Promise(resolve => setTimeout(resolve, 100))
+      }
+    }
+
+    if (!profileExists) {
+      console.error('Profile not created by trigger after', maxRetries, 'retries')
+      await supabaseAdmin.auth.admin.deleteUser(authData.user.id)
+      return new Response(
+        JSON.stringify({ error: 'Failed to create user profile. Please try again.' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    const updateData = {
+      department: department || null,
+      designation: designation || null,
+      date_of_joining: dateOfJoining || new Date().toISOString().split('T')[0],
+      organization_id: organizationId,
+      is_active: true,
+      base_salary: baseSalary !== undefined ? baseSalary : null,
+      working_days: (workingDays !== undefined && Array.isArray(workingDays)) ? workingDays : null,
+      daily_working_hours: dailyWorkingHours !== undefined ? dailyWorkingHours : null,
+    }
+
+    console.log('Updating user with:', JSON.stringify(updateData))
 
     // Update profile with additional fields that trigger doesn't handle
     const { data: profileData, error: profileError } = await supabaseAdmin
       .from('users')
-      .update({
-        department: department || null,
-        designation: designation || null,
-        date_of_joining: dateOfJoining || new Date().toISOString().split('T')[0],
-        organization_id: organizationId,
-        is_active: true,
-      })
+      .update(updateData)
       .eq('id', authData.user.id)
       .select()
       .single()
 
     if (profileError) {
+      console.error('Profile update error:', profileError)
       // Rollback: delete auth user if profile update fails
       await supabaseAdmin.auth.admin.deleteUser(authData.user.id)
       return new Response(
@@ -127,13 +220,24 @@ serve(async (req) => {
       )
     }
 
-    // Insert into user_role_cache
-    await supabaseAdmin
+    console.log('Profile updated:', profileData.id)
+
+    // Insert into user_role_cache (use upsert to handle duplicates)
+    const { error: roleCacheError } = await supabaseAdmin
       .from('user_role_cache')
-      .insert({
+      .upsert({
         user_id: authData.user.id,
         role: role || 'employee',
+      }, {
+        onConflict: 'user_id'
       })
+
+    if (roleCacheError) {
+      console.error('Role cache error:', roleCacheError)
+      // Non-fatal error, continue anyway
+    }
+
+    console.log('Employee created successfully:', authData.user.id)
 
     return new Response(
       JSON.stringify({
@@ -150,8 +254,9 @@ serve(async (req) => {
     )
 
   } catch (error) {
+    console.error('Unhandled error:', error)
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: error instanceof Error ? error.message : 'An unknown error occurred' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }

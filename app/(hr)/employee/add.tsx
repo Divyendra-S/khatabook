@@ -15,7 +15,7 @@ import { router } from 'expo-router';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCreateEmployee } from '@/hooks/mutations/useOrganizationMutations';
-import { useCurrentOrganization, useNextEmployeeId } from '@/hooks/queries/useOrganization';
+import { useCurrentOrganization } from '@/hooks/queries/useOrganization';
 import { UserRole, WeekDay } from '@/lib/types';
 import DatePicker from '@/components/ui/DatePicker';
 import WorkingDaysSelector from '@/components/employee/WorkingDaysSelector';
@@ -28,12 +28,10 @@ import {
 export default function AddEmployeeScreen() {
   const insets = useSafeAreaInsets();
   const { data: organization } = useCurrentOrganization();
-  const { data: nextEmployeeId, isLoading: isLoadingEmployeeId } = useNextEmployeeId(organization?.id || '');
 
   const initialFormState = {
     fullName: '',
     email: '',
-    employeeId: '',
     phone: '',
     password: '',
     role: 'employee' as UserRole,
@@ -47,19 +45,9 @@ export default function AddEmployeeScreen() {
 
   const [formData, setFormData] = useState(initialFormState);
 
-  // Auto-set employee ID when fetched
-  useEffect(() => {
-    if (nextEmployeeId) {
-      setFormData(prev => ({ ...prev, employeeId: nextEmployeeId }));
-    }
-  }, [nextEmployeeId]);
-
   // Reset form to initial state
   const resetForm = () => {
-    setFormData({
-      ...initialFormState,
-      employeeId: nextEmployeeId || '',
-    });
+    setFormData(initialFormState);
   };
 
   // Calculate real-time salary metrics
@@ -124,7 +112,6 @@ export default function AddEmployeeScreen() {
       email: formData.email.trim().toLowerCase(),
       password: formData.password.trim() ? formData.password.trim() : undefined, // Optional, will default to email in Edge Function
       fullName: formData.fullName.trim(),
-      employeeId: formData.employeeId.trim(),
       phone: formData.phone.trim() ? formData.phone.trim() : undefined,
       department: formData.department.trim() ? formData.department.trim() : undefined,
       designation: formData.designation.trim() ? formData.designation.trim() : undefined,
@@ -206,29 +193,6 @@ export default function AddEmployeeScreen() {
             </View>
             <Text style={styles.helperText}>
               If left empty, email will be used as the default password
-            </Text>
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>
-              Employee ID <Text style={styles.required}>*</Text>
-            </Text>
-            <View style={[styles.inputWrapper, styles.disabledInput]}>
-              <MaterialCommunityIcons name="badge-account-outline" size={20} color="#64748B" />
-              {isLoadingEmployeeId ? (
-                <ActivityIndicator size="small" color="#6366F1" />
-              ) : (
-                <TextInput
-                  style={styles.input}
-                  placeholder="Auto-generated"
-                  value={formData.employeeId}
-                  editable={false}
-                  placeholderTextColor="#94A3B8"
-                />
-              )}
-            </View>
-            <Text style={styles.helperText}>
-              Employee ID is automatically generated
             </Text>
           </View>
 
