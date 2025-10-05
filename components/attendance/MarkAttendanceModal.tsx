@@ -75,14 +75,14 @@ export default function MarkAttendanceModal({
 
         setFormData({
           userId: existingRecord.user_id,
-          date: checkInDate,
+          date: getTodayDate(), // Default to latest date (today)
           checkInTime: existingRecord.check_in_time
             ? new Date(existingRecord.check_in_time).toTimeString().slice(0, 5)
             : '',
           checkOutTime: existingRecord.check_out_time
             ? new Date(existingRecord.check_out_time).toTimeString().slice(0, 5)
             : '',
-          checkOutDate: checkOutDate,
+          checkOutDate: getTodayDate(), // Default to latest date (today)
           useSeparateCheckOutDate: checkInDate !== checkOutDate,
           notes: existingRecord.notes || '',
         });
