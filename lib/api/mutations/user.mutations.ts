@@ -172,4 +172,37 @@ export const userMutations = {
       throw err;
     }
   },
+
+  /**
+   * Reset password with old password verification
+   * This is secure because:
+   * 1. User must be authenticated (session exists)
+   * 2. Old password is verified via re-authentication
+   * 3. Supabase Auth handles the password update for the current session
+   */
+  resetPassword: async (params: {
+    email: string;
+    oldPassword: string;
+    newPassword: string;
+  }) => {
+    // First, verify the old password by attempting to sign in
+    // This ensures the user knows their current password
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email: params.email,
+      password: params.oldPassword,
+    });
+
+    if (signInError) {
+      throw new Error('Current password is incorrect');
+    }
+
+    // Update password for the currently authenticated user
+    // This only works if the user is authenticated
+    const { data, error } = await supabase.auth.updateUser({
+      password: params.newPassword,
+    });
+
+    if (error) throw error;
+    return data;
+  },
 };

@@ -162,3 +162,19 @@ export const useDeleteEmployee = (
     },
   });
 };
+
+/**
+ * Hook for resetting password with old password verification
+ */
+export const useResetPassword = (
+  options?: UseMutationOptions<any, Error, {
+    email: string;
+    oldPassword: string;
+    newPassword: string;
+  }>
+) => {
+  return useMutation({
+    mutationFn: (params) => userMutations.resetPassword(params),
+    ...options,
+  });
+};

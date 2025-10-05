@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, Alert, StatusBar } from 'react-native';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 import { Link, router } from 'expo-router';
 import { useSignIn } from '@/hooks/mutations/useAuthMutations';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   const signInMutation = useSignIn({
     onSuccess: () => {
@@ -65,9 +66,19 @@ export default function LoginScreen() {
               placeholderTextColor="#94A3B8"
               value={password}
               onChangeText={setPassword}
-              secureTextEntry
+              secureTextEntry={!showPassword}
               editable={!signInMutation.isPending}
             />
+            <TouchableOpacity
+              onPress={() => setShowPassword(!showPassword)}
+              style={styles.eyeButton}
+            >
+              <Ionicons
+                name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                size={20}
+                color="#64748B"
+              />
+            </TouchableOpacity>
           </View>
 
           <TouchableOpacity
@@ -167,6 +178,9 @@ const styles = StyleSheet.create({
     paddingLeft: 0,
     fontSize: 16,
     color: '#0F172A',
+  },
+  eyeButton: {
+    padding: 8,
   },
   button: {
     backgroundColor: '#6366F1',
