@@ -15,9 +15,12 @@ export default function EmployeesScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
 
-  const { data: users, isLoading, refetch: refetchUsers } = useAllUsers();
+  const { data: allUsers, isLoading, refetch: refetchUsers } = useAllUsers();
   const { data: earnings, refetch: refetchEarnings } = useAllCurrentMonthEarnings();
   const { data: weeklyAttendance, refetch: refetchWeeklyAttendance } = useCurrentWeekAttendanceForAll();
+
+  // Filter out HR and admin users to show only employees
+  const users = allUsers?.filter(user => user.role !== 'hr' && user.role !== 'admin');
 
   const deleteEmployee = useDeleteEmployee({
     onSuccess: () => {

@@ -21,6 +21,7 @@ export default function HRAttendanceScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<AttendanceRecord | undefined>(undefined);
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | undefined>(undefined);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [sortField, setSortField] = useState<SortField>('name');
@@ -91,11 +92,22 @@ export default function HRAttendanceScreen() {
 
   const handleMarkAttendance = () => {
     setSelectedRecord(undefined);
+    setSelectedEmployeeId(undefined);
     setModalVisible(true);
   };
 
   const handleEditAttendance = (record: AttendanceRecord) => {
+    // Check if this is a placeholder record for an absent employee
+    if (record.id.startsWith('absent-')) {
+      // For absent employees, open modal in "create" mode with employee pre-selected
+      setSelectedRecord(undefined);
+      setSelectedEmployeeId(record.user_id);
+      setModalVisible(true);
+      return;
+    }
+
     setSelectedRecord(record);
+    setSelectedEmployeeId(undefined);
     setModalVisible(true);
   };
 
@@ -325,8 +337,10 @@ export default function HRAttendanceScreen() {
         onClose={() => {
           setModalVisible(false);
           setSelectedRecord(undefined);
+          setSelectedEmployeeId(undefined);
         }}
         existingRecord={selectedRecord}
+        employeeId={selectedEmployeeId}
       />
     </View>
   );

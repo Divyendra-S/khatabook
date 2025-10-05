@@ -65,7 +65,7 @@ export default function HRSalaryScreen() {
                   <View style={styles.statIconBgBlue}>
                     <MaterialCommunityIcons name="cash-multiple" size={24} color="#3B82F6" />
                   </View>
-                  <Text style={styles.statValue}>₹{totalBaseSalary.toLocaleString('en-IN')}</Text>
+                  <Text style={styles.statValue}>₹{Math.floor(totalBaseSalary).toLocaleString('en-IN')}</Text>
                   <Text style={styles.statLabel}>Total Base Salary</Text>
                 </>
               )}
@@ -79,7 +79,7 @@ export default function HRSalaryScreen() {
                   <View style={styles.statIconBgGreen}>
                     <MaterialCommunityIcons name="currency-inr" size={24} color="#10B981" />
                   </View>
-                  <Text style={styles.statValue}>₹{totalEarnedThisMonth.toLocaleString('en-IN')}</Text>
+                  <Text style={styles.statValue}>₹{Math.floor(totalEarnedThisMonth).toLocaleString('en-IN')}</Text>
                   <Text style={styles.statLabel}>Total Spent This Month</Text>
                 </>
               )}
@@ -121,10 +121,10 @@ export default function HRSalaryScreen() {
                             {employee.full_name}
                           </Text>
                           <Text style={[styles.baseSalary, styles.salaryColumn]}>
-                            ₹{(employee.base_salary || 0).toLocaleString('en-IN')}
+                            ₹{Math.floor(employee.base_salary || 0).toLocaleString('en-IN')}
                           </Text>
                           <Text style={[styles.earnedAmount, styles.earnedColumn]}>
-                            ₹{earned.toLocaleString('en-IN')}
+                            ₹{Math.floor(earned).toLocaleString('en-IN')}
                           </Text>
                         </View>
                         {index < employees.length - 1 && <View style={styles.divider} />}
@@ -139,10 +139,10 @@ export default function HRSalaryScreen() {
                     Total ({employees.length} employees)
                   </Text>
                   <Text style={[styles.tableFooterAmount, styles.salaryColumn]}>
-                    ₹{totalBaseSalary.toLocaleString('en-IN')}
+                    ₹{Math.floor(totalBaseSalary).toLocaleString('en-IN')}
                   </Text>
                   <Text style={[styles.tableFooterAmount, styles.earnedColumn]}>
-                    ₹{totalEarnedThisMonth.toLocaleString('en-IN')}
+                    ₹{Math.floor(totalEarnedThisMonth).toLocaleString('en-IN')}
                   </Text>
                 </View>
               </View>

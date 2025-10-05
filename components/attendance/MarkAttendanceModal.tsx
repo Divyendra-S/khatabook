@@ -50,7 +50,7 @@ export default function MarkAttendanceModal({
   };
 
   const [formData, setFormData] = useState({
-    userId: employeeId || '',
+    userId: '',
     date: getTodayDate(),
     checkInTime: '',
     checkOutTime: '',
@@ -59,22 +59,39 @@ export default function MarkAttendanceModal({
   const [showEmployeeDropdown, setShowEmployeeDropdown] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Pre-fill form if editing existing record
+  // Reset and pre-fill form when modal opens or props change
   useEffect(() => {
-    if (existingRecord) {
-      setFormData({
-        userId: existingRecord.user_id,
-        date: existingRecord.date,
-        checkInTime: existingRecord.check_in_time
-          ? new Date(existingRecord.check_in_time).toTimeString().slice(0, 5)
-          : '',
-        checkOutTime: existingRecord.check_out_time
-          ? new Date(existingRecord.check_out_time).toTimeString().slice(0, 5)
-          : '',
-        notes: existingRecord.notes || '',
-      });
+    if (visible) {
+      if (existingRecord) {
+        // Editing existing record
+        setFormData({
+          userId: existingRecord.user_id,
+          date: existingRecord.date,
+          checkInTime: existingRecord.check_in_time
+            ? new Date(existingRecord.check_in_time).toTimeString().slice(0, 5)
+            : '',
+          checkOutTime: existingRecord.check_out_time
+            ? new Date(existingRecord.check_out_time).toTimeString().slice(0, 5)
+            : '',
+          notes: existingRecord.notes || '',
+        });
+      } else if (employeeId) {
+        // Creating new record with pre-selected employee
+        setFormData({
+          userId: employeeId,
+          date: getTodayDate(),
+          checkInTime: '',
+          checkOutTime: '',
+          notes: '',
+        });
+      } else {
+        // Creating new record without pre-selection
+        resetForm();
+      }
+      setShowEmployeeDropdown(false);
+      setSearchTerm('');
     }
-  }, [existingRecord]);
+  }, [visible, existingRecord, employeeId]);
 
   const markMutation = useMarkAttendance(user?.id || '', {
     onSuccess: async () => {
@@ -250,62 +267,76 @@ export default function MarkAttendanceModal({
             showsVerticalScrollIndicator={false}
           >
             {/* Employee Selection */}
-            {!existingRecord && !employeeId && (
+            {!existingRecord && (
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>
                   Employee <Text style={styles.required}>*</Text>
                 </Text>
-                <TouchableOpacity
-                  style={styles.dropdownButton}
-                  onPress={() => setShowEmployeeDropdown(!showEmployeeDropdown)}
-                >
-                  <MaterialCommunityIcons name="account-outline" size={20} color="#64748B" />
-                  <Text
-                    style={[
-                      styles.dropdownButtonText,
-                      !selectedEmployee && styles.dropdownPlaceholder,
-                    ]}
-                  >
-                    {selectedEmployee
-                      ? `${selectedEmployee.full_name} (${selectedEmployee.employee_id})`
-                      : 'Select employee'}
-                  </Text>
-                  <Ionicons
-                    name={showEmployeeDropdown ? 'chevron-up' : 'chevron-down'}
-                    size={20}
-                    color="#64748B"
-                  />
-                </TouchableOpacity>
-
-                {showEmployeeDropdown && (
-                  <View style={styles.dropdown}>
-                    <View style={styles.searchBox}>
-                      <Ionicons name="search" size={18} color="#64748B" />
-                      <TextInput
-                        style={styles.searchInput}
-                        placeholder="Search employee..."
-                        value={searchTerm}
-                        onChangeText={setSearchTerm}
-                        placeholderTextColor="#94A3B8"
-                      />
-                    </View>
-                    <ScrollView style={styles.dropdownList} nestedScrollEnabled>
-                      {filteredEmployees?.map((employee) => (
-                        <TouchableOpacity
-                          key={employee.id}
-                          style={styles.dropdownItem}
-                          onPress={() => {
-                            setFormData({ ...formData, userId: employee.id });
-                            setShowEmployeeDropdown(false);
-                            setSearchTerm('');
-                          }}
-                        >
-                          <Text style={styles.dropdownItemName}>{employee.full_name}</Text>
-                          <Text style={styles.dropdownItemId}>{employee.employee_id}</Text>
-                        </TouchableOpacity>
-                      ))}
-                    </ScrollView>
+                {employeeId ? (
+                  // Read-only display when employee is pre-selected
+                  <View style={[styles.dropdownButton, styles.dropdownButtonDisabled]}>
+                    <MaterialCommunityIcons name="account-outline" size={20} color="#64748B" />
+                    <Text style={styles.dropdownButtonText}>
+                      {selectedEmployee
+                        ? `${selectedEmployee.full_name} (${selectedEmployee.employee_id})`
+                        : 'Loading...'}
+                    </Text>
                   </View>
+                ) : (
+                  <>
+                    <TouchableOpacity
+                      style={styles.dropdownButton}
+                      onPress={() => setShowEmployeeDropdown(!showEmployeeDropdown)}
+                    >
+                      <MaterialCommunityIcons name="account-outline" size={20} color="#64748B" />
+                      <Text
+                        style={[
+                          styles.dropdownButtonText,
+                          !selectedEmployee && styles.dropdownPlaceholder,
+                        ]}
+                      >
+                        {selectedEmployee
+                          ? `${selectedEmployee.full_name} (${selectedEmployee.employee_id})`
+                          : 'Select employee'}
+                      </Text>
+                      <Ionicons
+                        name={showEmployeeDropdown ? 'chevron-up' : 'chevron-down'}
+                        size={20}
+                        color="#64748B"
+                      />
+                    </TouchableOpacity>
+
+                    {showEmployeeDropdown && (
+                      <View style={styles.dropdown}>
+                        <View style={styles.searchBox}>
+                          <Ionicons name="search" size={18} color="#64748B" />
+                          <TextInput
+                            style={styles.searchInput}
+                            placeholder="Search employee..."
+                            value={searchTerm}
+                            onChangeText={setSearchTerm}
+                            placeholderTextColor="#94A3B8"
+                          />
+                        </View>
+                        <ScrollView style={styles.dropdownList} nestedScrollEnabled>
+                          {filteredEmployees?.map((employee) => (
+                            <TouchableOpacity
+                              key={employee.id}
+                              style={styles.dropdownItem}
+                              onPress={() => {
+                                setFormData({ ...formData, userId: employee.id });
+                                setShowEmployeeDropdown(false);
+                                setSearchTerm('');
+                              }}
+                            >
+                              <Text style={styles.dropdownItemName}>{employee.full_name}</Text>
+                              <Text style={styles.dropdownItemId}>{employee.employee_id}</Text>
+                            </TouchableOpacity>
+                          ))}
+                        </ScrollView>
+                      </View>
+                    )}
+                  </>
                 )}
               </View>
             )}
@@ -542,6 +573,10 @@ const styles = StyleSheet.create({
   },
   dropdownPlaceholder: {
     color: '#94A3B8',
+  },
+  dropdownButtonDisabled: {
+    backgroundColor: '#F1F5F9',
+    opacity: 0.7,
   },
   dropdown: {
     marginTop: 8,

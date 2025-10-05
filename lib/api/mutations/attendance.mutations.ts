@@ -52,6 +52,7 @@ export const attendanceMutations = {
 
   /**
    * HR marks attendance for an employee
+   * Uses upsert to handle duplicate (user_id, date) combinations
    */
   markAttendance: async (params: {
     userId: string;
@@ -61,23 +62,49 @@ export const attendanceMutations = {
     markedBy: string;
     notes?: string;
   }) => {
-    const { data, error } = await supabase
+    // First check if a record already exists for this user and date
+    const { data: existingRecord } = await supabase
       .from('attendance_records')
-      .insert({
-        user_id: params.userId,
-        date: params.date,
-        check_in_time: params.checkInTime,
-        check_out_time: params.checkOutTime,
-        marked_by: params.markedBy,
-        marked_by_role: 'hr',
-        check_in_method: 'manual',
-        notes: params.notes,
-      })
-      .select()
-      .single();
+      .select('id')
+      .eq('user_id', params.userId)
+      .eq('date', params.date)
+      .maybeSingle();
 
-    if (error) throw error;
-    return data;
+    if (existingRecord) {
+      // Update existing record
+      const { data, error } = await supabase
+        .from('attendance_records')
+        .update({
+          check_in_time: params.checkInTime,
+          check_out_time: params.checkOutTime,
+          notes: params.notes,
+        })
+        .eq('id', existingRecord.id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    } else {
+      // Insert new record
+      const { data, error } = await supabase
+        .from('attendance_records')
+        .insert({
+          user_id: params.userId,
+          date: params.date,
+          check_in_time: params.checkInTime,
+          check_out_time: params.checkOutTime,
+          marked_by: params.markedBy,
+          marked_by_role: 'hr',
+          check_in_method: 'manual',
+          notes: params.notes,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    }
   },
 
   /**
