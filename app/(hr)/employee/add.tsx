@@ -30,7 +30,7 @@ export default function AddEmployeeScreen() {
   const { data: organization } = useCurrentOrganization();
   const { data: nextEmployeeId, isLoading: isLoadingEmployeeId } = useNextEmployeeId(organization?.id || '');
 
-  const [formData, setFormData] = useState({
+  const initialFormState = {
     fullName: '',
     email: '',
     employeeId: '',
@@ -43,7 +43,9 @@ export default function AddEmployeeScreen() {
     baseSalary: '',
     workingDays: DEFAULT_WORKING_DAYS as WeekDay[],
     dailyWorkingHours: '8',
-  });
+  };
+
+  const [formData, setFormData] = useState(initialFormState);
 
   // Auto-set employee ID when fetched
   useEffect(() => {
@@ -51,6 +53,14 @@ export default function AddEmployeeScreen() {
       setFormData(prev => ({ ...prev, employeeId: nextEmployeeId }));
     }
   }, [nextEmployeeId]);
+
+  // Reset form to initial state
+  const resetForm = () => {
+    setFormData({
+      ...initialFormState,
+      employeeId: nextEmployeeId || '',
+    });
+  };
 
   // Calculate real-time salary metrics
   const baseSalaryNum = parseFloat(formData.baseSalary) || 0;
@@ -65,12 +75,24 @@ export default function AddEmployeeScreen() {
 
   const createEmployeeMutation = useCreateEmployee(organization?.id || '', {
     onSuccess: () => {
-      Alert.alert('Success', 'Employee added successfully', [
-        {
-          text: 'OK',
-          onPress: () => router.back(),
-        },
-      ]);
+      // Reset the form first
+      resetForm();
+
+      // Show success alert with options
+      Alert.alert(
+        'Success',
+        'Employee added successfully',
+        [
+          {
+            text: 'Add Another',
+            style: 'default',
+          },
+          {
+            text: 'View Employees',
+            onPress: () => router.replace('/(hr)/employees'),
+          },
+        ]
+      );
     },
     onError: (error) => {
       Alert.alert('Error', error.message || 'Failed to add employee');
@@ -120,7 +142,7 @@ export default function AddEmployeeScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity onPress={() => router.push('/(hr)/employees')} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="#0F172A" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Add Employee</Text>

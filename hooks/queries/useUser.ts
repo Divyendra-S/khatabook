@@ -38,7 +38,7 @@ export const useUserById = (
   return useQuery({
     queryKey: userKeys.byId(userId),
     queryFn: () => userQueries.getUserById(userId),
-    staleTime: 1000 * 60 * 10,
+    gcTime: 1000 * 60 * 30, // Keep in cache for 30 minutes to prevent clearing during navigation
     enabled: !!userId,
     ...options,
   });

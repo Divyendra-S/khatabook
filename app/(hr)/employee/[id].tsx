@@ -81,7 +81,8 @@ export default function EmployeeDetailScreen() {
     );
   };
 
-  if (loadingEmployee) {
+  // Show loading state if still loading OR if employee data is not available yet
+  if (loadingEmployee || !employee) {
     return (
       <View style={styles.container}>
         <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
@@ -100,39 +101,6 @@ export default function EmployeeDetailScreen() {
         </View>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#6366F1" />
-        </View>
-      </View>
-    );
-  }
-
-  if (!employee) {
-    return (
-      <View style={styles.container}>
-        <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color="#0F172A" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Employee Details</Text>
-          <View style={styles.headerActions}>
-            <TouchableOpacity
-              style={[styles.actionButton, styles.deleteButton]}
-              disabled={true}
-            >
-              <Ionicons name="trash-outline" size={20} color="#94A3B8" />
-            </TouchableOpacity>
-          </View>
-        </View>
-        <View style={styles.errorContainer}>
-          <Feather name="alert-circle" size={64} color="#CBD5E1" />
-          <Text style={styles.errorText}>Employee not found</Text>
-          <TouchableOpacity
-            style={styles.errorButton}
-            onPress={() => router.back()}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="arrow-back" size={20} color="#FFFFFF" />
-            <Text style={styles.errorButtonText}>Go Back</Text>
-          </TouchableOpacity>
         </View>
       </View>
     );
@@ -248,7 +216,7 @@ export default function EmployeeDetailScreen() {
           </View>
         </View>
 
-        <View style={styles.section}>
+        {/* <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <MaterialCommunityIcons name="calendar-clock-outline" size={20} color="#6366F1" />
             <Text style={styles.sectionTitle}>Attendance Summary (Current Month)</Text>
@@ -289,7 +257,7 @@ export default function EmployeeDetailScreen() {
               </View>
             </View>
           )}
-        </View>
+        </View> */}
 
         <View style={styles.section}>
           <View style={styles.sectionHeader}>

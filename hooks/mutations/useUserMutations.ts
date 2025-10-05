@@ -1,6 +1,11 @@
 import { useMutation, useQueryClient, UseMutationOptions } from '@tanstack/react-query';
 import { userMutations } from '@/lib/api/mutations/user.mutations';
 import { userKeys } from '@/hooks/queries/useUser';
+import { organizationKeys } from '@/hooks/queries/useOrganization';
+import { attendanceKeys } from '@/hooks/queries/useAttendance';
+import { salaryKeys } from '@/hooks/queries/useSalary';
+import { earningsKeys } from '@/hooks/queries/useEarnings';
+import { leaveKeys } from '@/hooks/queries/useLeave';
 import { User } from '@/lib/types';
 
 /**
@@ -119,21 +124,19 @@ export const useDeleteEmployee = (
       console.log('✅ [useDeleteEmployee] Data:', data);
       console.log('✅ [useDeleteEmployee] UserId:', userId);
 
-      console.log('🔄 [useDeleteEmployee] Invalidating user queries...');
-      // Invalidate all user-related queries
-      await queryClient.invalidateQueries({
-        queryKey: userKeys.all,
-        refetchType: 'all'
-      });
+      console.log('🔄 [useDeleteEmployee] Invalidating all queries for app reload...');
 
-      console.log('🔄 [useDeleteEmployee] Refetching active queries...');
-      // Force refetch all active user queries
-      await queryClient.refetchQueries({
-        queryKey: userKeys.all,
-        type: 'active'
-      });
+      // Invalidate all queries to ensure complete refresh across the app
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: userKeys.all }),
+        queryClient.invalidateQueries({ queryKey: organizationKeys.all }),
+        queryClient.invalidateQueries({ queryKey: attendanceKeys.all }),
+        queryClient.invalidateQueries({ queryKey: salaryKeys.all }),
+        queryClient.invalidateQueries({ queryKey: earningsKeys.all }),
+        queryClient.invalidateQueries({ queryKey: leaveKeys.all }),
+      ]);
 
-      console.log('✅ [useDeleteEmployee] Cache invalidation complete');
+      console.log('✅ [useDeleteEmployee] All queries invalidated - app will reload data');
 
       // Call user's onSuccess if provided
       if (options?.onSuccess) {

@@ -2,6 +2,10 @@ import { useMutation, useQueryClient, UseMutationOptions } from '@tanstack/react
 import { organizationMutations } from '@/lib/api/mutations/organization.mutations';
 import { organizationKeys } from '@/hooks/queries/useOrganization';
 import { userKeys } from '@/hooks/queries/useUser';
+import { attendanceKeys } from '@/hooks/queries/useAttendance';
+import { salaryKeys } from '@/hooks/queries/useSalary';
+import { earningsKeys } from '@/hooks/queries/useEarnings';
+import { leaveKeys } from '@/hooks/queries/useLeave';
 import { User, Organization } from '@/lib/types';
 
 /**
@@ -34,26 +38,21 @@ export const useCreateEmployee = (
     mutationFn: (params) =>
       organizationMutations.createEmployee({ ...params, organizationId }),
     ...options,
-    onSuccess: (data, variables, context) => {
-      // Invalidate employees list
-      queryClient.invalidateQueries({
-        queryKey: organizationKeys.employees(organizationId),
-      });
-      // Invalidate organization stats
-      queryClient.invalidateQueries({
-        queryKey: organizationKeys.stats(organizationId),
-      });
-      // Invalidate next employee ID to fetch new one
-      queryClient.invalidateQueries({
-        queryKey: organizationKeys.nextEmployeeId(organizationId),
-      });
-      // Invalidate all users query
-      queryClient.invalidateQueries({
-        queryKey: userKeys.all,
-      });
+    onSuccess: async (data, variables, context) => {
+      // Invalidate all queries to ensure complete refresh across the app
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: userKeys.all }),
+        queryClient.invalidateQueries({ queryKey: organizationKeys.all }),
+        queryClient.invalidateQueries({ queryKey: attendanceKeys.all }),
+        queryClient.invalidateQueries({ queryKey: salaryKeys.all }),
+        queryClient.invalidateQueries({ queryKey: earningsKeys.all }),
+        queryClient.invalidateQueries({ queryKey: leaveKeys.all }),
+      ]);
 
       // Call the custom onSuccess callback if provided
-      options?.onSuccess?.(data, variables, context);
+      if (options?.onSuccess) {
+        await options.onSuccess(data, variables, context);
+      }
     },
   });
 };

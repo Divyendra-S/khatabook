@@ -54,6 +54,8 @@ export default function MarkAttendanceModal({
     date: getTodayDate(),
     checkInTime: '',
     checkOutTime: '',
+    checkOutDate: getTodayDate(), // Separate date for check-out
+    useSeparateCheckOutDate: false, // Toggle for different check-out date
     notes: '',
   });
   const [showEmployeeDropdown, setShowEmployeeDropdown] = useState(false);
@@ -64,15 +66,24 @@ export default function MarkAttendanceModal({
     if (visible) {
       if (existingRecord) {
         // Editing existing record
+        const checkInDate = existingRecord.check_in_time
+          ? new Date(existingRecord.check_in_time).toISOString().split('T')[0]
+          : existingRecord.date;
+        const checkOutDate = existingRecord.check_out_time
+          ? new Date(existingRecord.check_out_time).toISOString().split('T')[0]
+          : checkInDate;
+
         setFormData({
           userId: existingRecord.user_id,
-          date: existingRecord.date,
+          date: checkInDate,
           checkInTime: existingRecord.check_in_time
             ? new Date(existingRecord.check_in_time).toTimeString().slice(0, 5)
             : '',
           checkOutTime: existingRecord.check_out_time
             ? new Date(existingRecord.check_out_time).toTimeString().slice(0, 5)
             : '',
+          checkOutDate: checkOutDate,
+          useSeparateCheckOutDate: checkInDate !== checkOutDate,
           notes: existingRecord.notes || '',
         });
       } else if (employeeId) {
@@ -82,6 +93,8 @@ export default function MarkAttendanceModal({
           date: getTodayDate(),
           checkInTime: '',
           checkOutTime: '',
+          checkOutDate: getTodayDate(),
+          useSeparateCheckOutDate: false,
           notes: '',
         });
       } else {
@@ -131,6 +144,8 @@ export default function MarkAttendanceModal({
       date: getTodayDate(),
       checkInTime: '',
       checkOutTime: '',
+      checkOutDate: getTodayDate(),
+      useSeparateCheckOutDate: false,
       notes: '',
     });
     setSearchTerm('');
@@ -151,15 +166,30 @@ export default function MarkAttendanceModal({
       return;
     }
 
-    // Check if date is a working day
+    // Validate check-out time is not in the future
+    if (formData.checkOutTime) {
+      const checkOutDateToUse = formData.useSeparateCheckOutDate
+        ? formData.checkOutDate
+        : formData.date;
+
+      const [checkOutHour, checkOutMinute] = formData.checkOutTime.split(':').map(Number);
+      const checkOutDateTime = new Date(checkOutDateToUse);
+      checkOutDateTime.setHours(checkOutHour, checkOutMinute, 0, 0);
+
+      const now = new Date();
+
+      if (checkOutDateTime > now) {
+        Alert.alert('Invalid Time', 'Check-out time cannot be in the future');
+        return;
+      }
+    }
+
+    // Block attendance marking on off days
     if (!isSelectedDateWorkingDay) {
       Alert.alert(
-        'Off Day',
-        'The selected date is not a working day for this employee. Do you still want to mark attendance?',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Continue', onPress: () => proceedWithSubmit() },
-        ]
+        'Cannot Mark Attendance',
+        'The selected date is not a working day for this employee. Attendance cannot be marked on off days.',
+        [{ text: 'OK', style: 'default' }]
       );
       return;
     }
@@ -183,7 +213,11 @@ export default function MarkAttendanceModal({
     let checkOutDateTime: string | undefined;
     if (formData.checkOutTime) {
       const [checkOutHour, checkOutMinute] = formData.checkOutTime.split(':');
-      const checkOutDate = new Date(formData.date);
+      // Use separate check-out date if enabled, otherwise use check-in date
+      const checkOutDateToUse = formData.useSeparateCheckOutDate
+        ? formData.checkOutDate
+        : formData.date;
+      const checkOutDate = new Date(checkOutDateToUse);
       checkOutDate.setHours(parseInt(checkOutHour), parseInt(checkOutMinute), 0, 0);
       checkOutDateTime = checkOutDate.toISOString();
     }
@@ -234,14 +268,18 @@ export default function MarkAttendanceModal({
     const checkInDate = new Date(formData.date);
     checkInDate.setHours(checkInHour, checkInMinute, 0, 0);
 
-    const checkOutDate = new Date(formData.date);
+    // Use separate check-out date if enabled
+    const checkOutDateToUse = formData.useSeparateCheckOutDate
+      ? formData.checkOutDate
+      : formData.date;
+    const checkOutDate = new Date(checkOutDateToUse);
     checkOutDate.setHours(checkOutHour, checkOutMinute, 0, 0);
 
     const diffMs = checkOutDate.getTime() - checkInDate.getTime();
     const hours = diffMs / (1000 * 60 * 60);
 
     return hours;
-  }, [formData.checkInTime, formData.checkOutTime, formData.date]);
+  }, [formData.checkInTime, formData.checkOutTime, formData.date, formData.checkOutDate, formData.useSeparateCheckOutDate]);
 
   const isLoading = markMutation.isPending || updateMutation.isPending;
 
@@ -369,6 +407,42 @@ export default function MarkAttendanceModal({
               iconColor="#EF4444"
             />
 
+            {/* Different Check-out Date Toggle */}
+            {formData.checkOutTime && (
+              <TouchableOpacity
+                style={styles.checkOutDateToggle}
+                onPress={() => setFormData({
+                  ...formData,
+                  useSeparateCheckOutDate: !formData.useSeparateCheckOutDate,
+                  checkOutDate: formData.useSeparateCheckOutDate ? formData.date : formData.checkOutDate
+                })}
+                activeOpacity={0.7}
+              >
+                <View style={styles.toggleLeft}>
+                  <MaterialCommunityIcons
+                    name={formData.useSeparateCheckOutDate ? "checkbox-marked" : "checkbox-blank-outline"}
+                    size={22}
+                    color={formData.useSeparateCheckOutDate ? "#6366F1" : "#94A3B8"}
+                  />
+                  <Text style={styles.toggleText}>
+                    Different check-out date
+                  </Text>
+                </View>
+                <Ionicons name="information-circle-outline" size={18} color="#94A3B8" />
+              </TouchableOpacity>
+            )}
+
+            {/* Check-out Date (shown only if toggle is enabled) */}
+            {formData.checkOutTime && formData.useSeparateCheckOutDate && (
+              <DatePicker
+                value={formData.checkOutDate}
+                onChange={(date) => setFormData({ ...formData, checkOutDate: date })}
+                label="Check-out Date"
+                required
+                maximumDate={new Date()}
+              />
+            )}
+
             {/* Hours Preview */}
             {hoursPreview !== null && (
               <View style={[
@@ -411,14 +485,14 @@ export default function MarkAttendanceModal({
               </View>
             )}
 
-            {/* Off Day Warning */}
+            {/* Off Day Error */}
             {!isSelectedDateWorkingDay && selectedEmployee && (
-              <View style={styles.warningCard}>
-                <Ionicons name="warning" size={20} color="#F59E0B" />
+              <View style={styles.errorCard}>
+                <Ionicons name="close-circle" size={20} color="#EF4444" />
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.warningTitle}>Off Day</Text>
-                  <Text style={styles.warningText}>
-                    This is not a working day for this employee
+                  <Text style={styles.errorTitle}>Off Day - Cannot Mark Attendance</Text>
+                  <Text style={styles.errorText}>
+                    This is not a working day for this employee. Please select a valid working day.
                   </Text>
                 </View>
               </View>
@@ -449,9 +523,12 @@ export default function MarkAttendanceModal({
 
             {/* Submit Button */}
             <TouchableOpacity
-              style={[styles.submitButton, isLoading && styles.submitButtonDisabled]}
+              style={[
+                styles.submitButton,
+                (isLoading || !isSelectedDateWorkingDay) && styles.submitButtonDisabled
+              ]}
               onPress={handleSubmit}
-              disabled={isLoading}
+              disabled={isLoading || !isSelectedDateWorkingDay}
               activeOpacity={0.8}
             >
               {isLoading ? (
@@ -732,5 +809,47 @@ const styles = StyleSheet.create({
   warningText: {
     fontSize: 12,
     color: '#78350F',
+  },
+  errorCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: '#FEE2E2',
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    marginBottom: 20,
+  },
+  errorTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#991B1B',
+    marginBottom: 2,
+  },
+  errorText: {
+    fontSize: 12,
+    color: '#991B1B',
+  },
+  checkOutDateToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#F8FAFC',
+    padding: 12,
+    borderRadius: 10,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  toggleLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  toggleText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#334155',
   },
 });
