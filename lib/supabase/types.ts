@@ -16,6 +16,7 @@ export type Database = {
     Tables: {
       attendance_records: {
         Row: {
+          breaks: Json | null
           check_in_method: string | null
           check_in_time: string | null
           check_out_time: string | null
@@ -26,11 +27,13 @@ export type Database = {
           marked_by: string | null
           marked_by_role: string | null
           notes: string | null
+          total_break_minutes: number | null
           total_hours: number | null
           updated_at: string | null
           user_id: string
         }
         Insert: {
+          breaks?: Json | null
           check_in_method?: string | null
           check_in_time?: string | null
           check_out_time?: string | null
@@ -41,11 +44,13 @@ export type Database = {
           marked_by?: string | null
           marked_by_role?: string | null
           notes?: string | null
+          total_break_minutes?: number | null
           total_hours?: number | null
           updated_at?: string | null
           user_id: string
         }
         Update: {
+          breaks?: Json | null
           check_in_method?: string | null
           check_in_time?: string | null
           check_out_time?: string | null
@@ -56,6 +61,7 @@ export type Database = {
           marked_by?: string | null
           marked_by_role?: string | null
           notes?: string | null
+          total_break_minutes?: number | null
           total_hours?: number | null
           updated_at?: string | null
           user_id?: string
@@ -70,6 +76,98 @@ export type Database = {
           },
           {
             foreignKeyName: "attendance_records_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      break_requests: {
+        Row: {
+          approved_end_time: string | null
+          approved_start_time: string | null
+          attendance_record_id: string
+          created_at: string | null
+          duration_minutes: number | null
+          id: string
+          notes: string | null
+          reason: string | null
+          request_date: string
+          requested_by: string
+          requested_end_time: string | null
+          requested_start_time: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          reviewer_notes: string | null
+          status: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          approved_end_time?: string | null
+          approved_start_time?: string | null
+          attendance_record_id: string
+          created_at?: string | null
+          duration_minutes?: number | null
+          id?: string
+          notes?: string | null
+          reason?: string | null
+          request_date: string
+          requested_by: string
+          requested_end_time?: string | null
+          requested_start_time?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          reviewer_notes?: string | null
+          status?: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          approved_end_time?: string | null
+          approved_start_time?: string | null
+          attendance_record_id?: string
+          created_at?: string | null
+          duration_minutes?: number | null
+          id?: string
+          notes?: string | null
+          reason?: string | null
+          request_date?: string
+          requested_by?: string
+          requested_end_time?: string | null
+          requested_start_time?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          reviewer_notes?: string | null
+          status?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "break_requests_attendance_record_id_fkey"
+            columns: ["attendance_record_id"]
+            isOneToOne: false
+            referencedRelation: "attendance_records"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "break_requests_requested_by_fkey"
+            columns: ["requested_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "break_requests_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "break_requests_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"
@@ -490,6 +588,14 @@ export type Database = {
           p_type: string
           p_user_id: string
         }
+        Returns: string
+      }
+      delete_employee_with_cascade: {
+        Args: { p_employee_id: string }
+        Returns: Json
+      }
+      generate_employee_id: {
+        Args: { org_id: string }
         Returns: string
       }
       get_monthly_attendance_summary: {

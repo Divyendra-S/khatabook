@@ -311,10 +311,13 @@ export const attendanceQueries = {
 
     if (employeesError) throw employeesError;
 
-    // Then get attendance records for the date
+    // Then get attendance records for the date with break requests
     const { data: attendanceRecords, error: attendanceError } = await supabase
       .from('attendance_records')
-      .select('*')
+      .select(`
+        *,
+        break_requests:break_requests(*)
+      `)
       .eq('date', targetDate);
 
     if (attendanceError) throw attendanceError;
@@ -337,6 +340,7 @@ export const attendanceQueries = {
             employee_id: employee.employee_id,
             department: employee.department,
           },
+          break_requests: (attendanceRecord as any).break_requests || [],
         };
       } else {
         // Employee is absent - create a placeholder record

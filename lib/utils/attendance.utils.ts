@@ -1,7 +1,8 @@
 import { differenceInHours, differenceInMinutes } from 'date-fns';
+import { AttendanceBreak } from '@/lib/types';
 
 /**
- * Calculate total hours worked
+ * Calculate total hours worked (without break deduction)
  */
 export const calculateTotalHours = (checkInTime: string, checkOutTime: string): number => {
   const checkIn = new Date(checkInTime);
@@ -9,6 +10,78 @@ export const calculateTotalHours = (checkInTime: string, checkOutTime: string): 
   const hours = differenceInHours(checkOut, checkIn);
   const minutes = differenceInMinutes(checkOut, checkIn) % 60;
   return Number((hours + minutes / 60).toFixed(2));
+};
+
+/**
+ * Parse breaks from JSONB (Json type) to typed AttendanceBreak array
+ */
+export const parseBreaks = (breaksJson: any): AttendanceBreak[] => {
+  if (!breaksJson) return [];
+  if (Array.isArray(breaksJson)) return breaksJson as AttendanceBreak[];
+  return [];
+};
+
+/**
+ * Calculate total break hours from breaks array
+ */
+export const calculateBreakHours = (breaks: AttendanceBreak[]): number => {
+  if (!breaks || breaks.length === 0) return 0;
+  const totalMinutes = breaks.reduce((sum, brk) => sum + (brk.duration_minutes || 0), 0);
+  return Number((totalMinutes / 60).toFixed(2));
+};
+
+/**
+ * Calculate net working hours (total hours - breaks)
+ */
+export const calculateNetHours = (
+  checkInTime: string,
+  checkOutTime: string,
+  breaks: AttendanceBreak[]
+): number => {
+  const grossHours = calculateTotalHours(checkInTime, checkOutTime);
+  const breakHours = calculateBreakHours(breaks);
+  return Number(Math.max(0, grossHours - breakHours).toFixed(2));
+};
+
+/**
+ * Calculate break duration in minutes between two times
+ */
+export const calculateBreakDuration = (startTime: string, endTime: string): number => {
+  const start = new Date(startTime);
+  const end = new Date(endTime);
+  const minutes = differenceInMinutes(end, start);
+  return Math.max(0, minutes);
+};
+
+/**
+ * Validate break time is within check-in and check-out period
+ */
+export const validateBreakTime = (
+  breakStartTime: string,
+  breakEndTime: string,
+  checkInTime: string,
+  checkOutTime: string
+): { valid: boolean; error?: string } => {
+  const breakStart = new Date(breakStartTime);
+  const breakEnd = new Date(breakEndTime);
+  const checkIn = new Date(checkInTime);
+  const checkOut = new Date(checkOutTime);
+
+  // Break end must be after break start
+  if (breakEnd <= breakStart) {
+    return { valid: false, error: 'Break end time must be after start time' };
+  }
+
+  // Break must be within check-in and check-out times
+  if (breakStart < checkIn) {
+    return { valid: false, error: 'Break cannot start before check-in time' };
+  }
+
+  if (breakEnd > checkOut) {
+    return { valid: false, error: 'Break cannot end after check-out time' };
+  }
+
+  return { valid: true };
 };
 
 /**
@@ -47,4 +120,83 @@ export const getAttendanceStatus = (record: {
 export const calculateAttendancePercentage = (presentDays: number, totalDays: number): number => {
   if (totalDays === 0) return 0;
   return Math.round((presentDays / totalDays) * 100);
+};
+
+/**
+ * Format break summary for display
+ */
+export const formatBreakSummary = (breaks: AttendanceBreak[]): string => {
+  if (!breaks || breaks.length === 0) return 'No breaks';
+
+  const breakCount = breaks.length;
+  const totalMinutes = breaks.reduce((sum, brk) => sum + (brk.duration_minutes || 0), 0);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+
+  let summary = `${breakCount} break${breakCount > 1 ? 's' : ''}`;
+  if (hours > 0) {
+    summary += ` (${hours}h`;
+    if (minutes > 0) summary += ` ${minutes}m`;
+    summary += ')';
+  } else if (minutes > 0) {
+    summary += ` (${minutes}m)`;
+  }
+
+  return summary;
+};
+
+/**
+ * Calculate total hours from approved break requests only
+ */
+export const calculateApprovedBreakHours = (breakRequests: any[]): number => {
+  if (!breakRequests || breakRequests.length === 0) return 0;
+
+  // Filter only approved breaks
+  const approvedBreaks = breakRequests.filter(req => req.status === 'approved');
+
+  // Sum up duration_minutes from approved breaks
+  const totalMinutes = approvedBreaks.reduce((sum, req) => {
+    return sum + (req.duration_minutes || 0);
+  }, 0);
+
+  // Convert to hours
+  return Number((totalMinutes / 60).toFixed(2));
+};
+
+/**
+ * Format break duration from break requests for display
+ */
+export const formatBreakDurationFromRequests = (breakRequests: any[]): string => {
+  if (!breakRequests || breakRequests.length === 0) return 'No breaks';
+
+  const approvedBreaks = breakRequests.filter(req => req.status === 'approved');
+
+  if (approvedBreaks.length === 0) return 'No approved breaks';
+
+  const breakCount = approvedBreaks.length;
+  const totalMinutes = approvedBreaks.reduce((sum, req) => sum + (req.duration_minutes || 0), 0);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+
+  let summary = `${breakCount} break${breakCount > 1 ? 's' : ''}`;
+  if (hours > 0) {
+    summary += ` (${hours}h`;
+    if (minutes > 0) summary += ` ${minutes}m`;
+    summary += ')';
+  } else if (minutes > 0) {
+    summary += ` (${minutes}m)`;
+  }
+
+  return summary;
+};
+
+/**
+ * Calculate net working hours (total hours - approved break hours)
+ */
+export const calculateNetHoursWithBreakRequests = (
+  totalHours: number,
+  breakRequests: any[]
+): number => {
+  const breakHours = calculateApprovedBreakHours(breakRequests);
+  return Number(Math.max(0, totalHours - breakHours).toFixed(2));
 };

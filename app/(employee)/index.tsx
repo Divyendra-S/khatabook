@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, ScrollView, FlatList, TouchableOpacity, ActivityIndicator, StatusBar, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, FlatList, TouchableOpacity, ActivityIndicator, StatusBar, RefreshControl, Alert } from 'react-native';
 import { useState } from 'react';
 import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -7,15 +7,20 @@ import { useTodayAttendance, useMonthlyAttendanceSummary } from '@/hooks/queries
 import { useLatestSalary } from '@/hooks/queries/useSalary';
 import { useCurrentMonthEarnings } from '@/hooks/queries/useEarnings';
 import { useCheckIn, useCheckOut } from '@/hooks/mutations/useAttendanceMutations';
+import { useMyBreakRequests } from '@/hooks/queries/useBreakRequests';
+import { useAutoRejectExpiredBreaks } from '@/hooks/useAutoRejectExpiredBreaks';
 import { formatDate, formatTime } from '@/lib/utils/date.utils';
+import { calculateBreakDuration } from '@/lib/utils/attendance.utils';
 import { formatCurrency } from '@/lib/utils/salary.utils';
 import { formatHours } from '@/lib/utils/attendance.utils';
 import { isTodayWorkingDay, formatWorkingDays } from '@/lib/utils/workingDays.utils';
 import SalaryProgressCard from '@/components/salary/SalaryProgressCard';
+import BreakRequestModal from '@/components/attendance/BreakRequestModal';
 import { WeekDay } from '@/lib/types';
 
 export default function EmployeeDashboard() {
   const [refreshing, setRefreshing] = useState(false);
+  const [showBreakRequestModal, setShowBreakRequestModal] = useState(false);
   const router = useRouter();
   const { user } = useAuth();
   const userId = user?.id || '';
@@ -27,7 +32,38 @@ export default function EmployeeDashboard() {
     new Date().getFullYear()
   );
   const { data: latestSalary, isLoading: loadingSalary, refetch: refetchSalary } = useLatestSalary(userId);
-  const { data: earnings, isLoading: loadingEarnings, refetch: refetchEarnings } = useCurrentMonthEarnings(userId);
+  const { data: earnings, isLoading: loadingEarnings, refetch: refetchEarnings} = useCurrentMonthEarnings(userId);
+  const { data: myBreakRequests, refetch: refetchBreakRequests } = useMyBreakRequests(userId);
+
+  // Auto-reject expired pending break requests
+  useAutoRejectExpiredBreaks(userId);
+
+  // Find pending break request for today's attendance
+  const pendingBreakRequest = myBreakRequests?.find(
+    (req: any) => req.attendance_record_id === todayAttendance?.id && req.status === 'pending'
+  );
+
+  // Find approved break requests for today
+  const approvedBreakRequests = myBreakRequests?.filter(
+    (req: any) => req.attendance_record_id === todayAttendance?.id && req.status === 'approved'
+  ) || [];
+
+  // Check if any approved break is currently ongoing
+  const now = new Date();
+  const ongoingBreak = approvedBreakRequests.find((req: any) => {
+    if (!req.approved_start_time || !req.approved_end_time) return false;
+    const startTime = new Date(req.approved_start_time);
+    const endTime = new Date(req.approved_end_time);
+    return now >= startTime && now <= endTime;
+  });
+
+  // Calculate total break duration for today
+  const totalBreakDuration = approvedBreakRequests.reduce((total: number, req: any) => {
+    if (req.approved_start_time && req.approved_end_time) {
+      return total + calculateBreakDuration(req.approved_start_time, req.approved_end_time);
+    }
+    return total;
+  }, 0);
 
   const checkInMutation = useCheckIn(userId);
   const checkOutMutation = useCheckOut(userId);
@@ -37,6 +73,17 @@ export default function EmployeeDashboard() {
   };
 
   const handleCheckOut = () => {
+    // Prevent checkout if break is ongoing
+    if (ongoingBreak) {
+      const endTime = new Date(ongoingBreak.approved_end_time);
+      Alert.alert(
+        'Break in Progress',
+        `You cannot check out during a break. Your break ends at ${formatTime(endTime)}. Please wait until your break is complete.`,
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
     if (todayAttendance?.id) {
       checkOutMutation.mutate({ recordId: todayAttendance.id, notes: 'Self check-out' });
     }
@@ -55,6 +102,7 @@ export default function EmployeeDashboard() {
         refetchMonthly(),
         refetchSalary(),
         refetchEarnings(),
+        refetchBreakRequests(),
       ]);
     } finally {
       setRefreshing(false);
@@ -150,6 +198,11 @@ export default function EmployeeDashboard() {
                         <Text style={[styles.timeCardValue, styles.hoursValue]}>
                           {formatHours(todayAttendance.total_hours || 0)}
                         </Text>
+                        {totalBreakDuration > 0 && (
+                          <Text style={styles.breakDeductionText}>
+                            (Break: -{Math.floor(totalBreakDuration / 60)}h {totalBreakDuration % 60}m deducted)
+                          </Text>
+                        )}
                       </View>
                     </View>
                   </View>
@@ -194,21 +247,133 @@ export default function EmployeeDashboard() {
                 )}
 
                 {isCheckedIn && (
-                  <TouchableOpacity
-                    activeOpacity={0.7}
-                    onPress={handleCheckOut}
-                    disabled={checkOutMutation.isPending}
-                    style={styles.checkOutButton}
-                  >
-                    {checkOutMutation.isPending ? (
-                      <ActivityIndicator size="small" color="#FFFFFF" />
+                  <>
+                    <TouchableOpacity
+                      activeOpacity={0.7}
+                      onPress={handleCheckOut}
+                      disabled={checkOutMutation.isPending || !!ongoingBreak}
+                      style={[
+                        styles.checkOutButton,
+                        ongoingBreak && styles.checkOutButtonDisabled,
+                      ]}
+                    >
+                      {checkOutMutation.isPending ? (
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                      ) : (
+                        <>
+                          <Ionicons name="exit-outline" size={20} color="#FFFFFF" />
+                          <Text style={styles.checkOutButtonText}>
+                            {ongoingBreak ? 'On Break - Cannot Check Out' : 'Check Out'}
+                          </Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+
+                    {ongoingBreak ? (
+                      <View style={styles.ongoingBreakCard}>
+                        {/* Status Badge */}
+                        <View style={styles.ongoingStatusBadge}>
+                          <View style={styles.pulseDotGreen} />
+                          <Text style={styles.ongoingStatusText}>Break in Progress</Text>
+                        </View>
+
+                        {/* Time Display */}
+                        <View style={styles.breakTimeDisplay}>
+                          <View style={styles.breakTimeMain}>
+                            <MaterialCommunityIcons name="coffee" size={32} color="#10B981" />
+                            <View style={styles.breakTimeInfo}>
+                              <Text style={styles.breakTimeLabel}>Break Time</Text>
+                              <Text style={[styles.breakTimeValue, { color: '#065F46' }]}>
+                                {formatTime(new Date(ongoingBreak.approved_start_time))} - {formatTime(new Date(ongoingBreak.approved_end_time))}
+                              </Text>
+                            </View>
+                          </View>
+
+                          <View style={[styles.breakDurationBadge, { backgroundColor: '#D1FAE5', borderColor: '#6EE7B7' }]}>
+                            <Ionicons name="timer" size={16} color="#10B981" />
+                            <Text style={[styles.breakDurationText, { color: '#10B981' }]}>
+                              {Math.floor(calculateBreakDuration(ongoingBreak.approved_start_time, ongoingBreak.approved_end_time) / 60)}h {calculateBreakDuration(ongoingBreak.approved_start_time, ongoingBreak.approved_end_time) % 60}m
+                            </Text>
+                          </View>
+                        </View>
+
+                        {/* Reason */}
+                        {ongoingBreak.reason && (
+                          <View style={styles.breakReasonContainer}>
+                            <View style={styles.breakReasonHeader}>
+                              <Feather name="message-circle" size={14} color="#78350F" />
+                              <Text style={styles.breakReasonLabel}>Reason</Text>
+                            </View>
+                            <Text style={styles.breakReasonText}>{ongoingBreak.reason}</Text>
+                          </View>
+                        )}
+
+                        {/* Footer Message */}
+                        <View style={[styles.breakPendingFooter, { backgroundColor: '#D1FAE5', borderColor: '#A7F3D0' }]}>
+                          <MaterialCommunityIcons name="clock-check-outline" size={16} color="#047857" />
+                          <Text style={[styles.breakPendingFooterText, { color: '#047857' }]}>
+                            Ends at {formatTime(new Date(ongoingBreak.approved_end_time))}
+                          </Text>
+                        </View>
+                      </View>
+                    ) : pendingBreakRequest ? (
+                      <View style={styles.pendingBreakCard}>
+                        {/* Status Badge */}
+                        <View style={styles.pendingStatusBadge}>
+                          <View style={styles.pulseDotOrange} />
+                          <Text style={styles.pendingStatusText}>Pending Approval</Text>
+                        </View>
+
+                        {/* Time Display */}
+                        {pendingBreakRequest.requested_start_time && pendingBreakRequest.requested_end_time && (
+                          <View style={styles.breakTimeDisplay}>
+                            <View style={styles.breakTimeMain}>
+                              <MaterialCommunityIcons name="coffee" size={32} color="#F59E0B" />
+                              <View style={styles.breakTimeInfo}>
+                                <Text style={styles.breakTimeLabel}>Break Time</Text>
+                                <Text style={styles.breakTimeValue}>
+                                  {formatTime(new Date(pendingBreakRequest.requested_start_time))} - {formatTime(new Date(pendingBreakRequest.requested_end_time))}
+                                </Text>
+                              </View>
+                            </View>
+
+                            <View style={styles.breakDurationBadge}>
+                              <Ionicons name="timer" size={16} color="#F59E0B" />
+                              <Text style={styles.breakDurationText}>
+                                {Math.floor(calculateBreakDuration(pendingBreakRequest.requested_start_time, pendingBreakRequest.requested_end_time) / 60)}h {calculateBreakDuration(pendingBreakRequest.requested_start_time, pendingBreakRequest.requested_end_time) % 60}m
+                              </Text>
+                            </View>
+                          </View>
+                        )}
+
+                        {/* Reason */}
+                        {pendingBreakRequest.reason && (
+                          <View style={styles.breakReasonContainer}>
+                            <View style={styles.breakReasonHeader}>
+                              <Feather name="message-circle" size={14} color="#78350F" />
+                              <Text style={styles.breakReasonLabel}>Reason</Text>
+                            </View>
+                            <Text style={styles.breakReasonText}>{pendingBreakRequest.reason}</Text>
+                          </View>
+                        )}
+
+                        {/* Footer Message */}
+                        <View style={styles.breakPendingFooter}>
+                          <MaterialCommunityIcons name="shield-check-outline" size={16} color="#92400E" />
+                          <Text style={styles.breakPendingFooterText}>Awaiting HR review and approval</Text>
+                        </View>
+                      </View>
                     ) : (
-                      <>
-                        <Ionicons name="exit-outline" size={20} color="#FFFFFF" />
-                        <Text style={styles.checkOutButtonText}>Check Out</Text>
-                      </>
+                      <TouchableOpacity
+                        activeOpacity={0.7}
+                        onPress={() => setShowBreakRequestModal(true)}
+                        style={styles.breakRequestButton}
+                      >
+                        <MaterialCommunityIcons name="coffee-outline" size={18} color="#F59E0B" />
+                        <Text style={styles.breakRequestButtonText}>Request Break</Text>
+                      </TouchableOpacity>
                     )}
-                  </TouchableOpacity>
+                  </>
                 )}
               </>
             )}
@@ -364,6 +529,15 @@ export default function EmployeeDashboard() {
           </View>
         </View>
       </ScrollView>
+
+      {/* Break Request Modal */}
+      {todayAttendance && (
+        <BreakRequestModal
+          visible={showBreakRequestModal}
+          onClose={() => setShowBreakRequestModal(false)}
+          attendanceRecord={todayAttendance}
+        />
+      )}
     </View>
   );
 }
@@ -568,6 +742,16 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
+  checkOutButtonDisabled: {
+    opacity: 0.5,
+    backgroundColor: '#94A3B8',
+  },
+  breakDeductionText: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 4,
+    fontStyle: 'italic',
+  },
   statsContainer: {
     gap: 0,
   },
@@ -718,5 +902,187 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginTop: 4,
     textAlign: 'center',
+  },
+  breakRequestButton: {
+    backgroundColor: '#FEF3C7',
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+  },
+  breakRequestButtonDisabled: {
+    backgroundColor: '#F1F5F9',
+    borderColor: '#E2E8F0',
+    opacity: 0.7,
+  },
+  breakRequestButtonText: {
+    color: '#92400E',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  breakRequestButtonTextDisabled: {
+    color: '#94A3B8',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  ongoingBreakCard: {
+    backgroundColor: '#ECFDF5',
+    borderRadius: 16,
+    padding: 0,
+    marginTop: 12,
+    borderWidth: 2,
+    borderColor: '#6EE7B7',
+    overflow: 'hidden',
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 3,
+  },
+  pendingBreakCard: {
+    backgroundColor: '#FFFBEB',
+    borderRadius: 16,
+    padding: 0,
+    marginTop: 12,
+    borderWidth: 2,
+    borderColor: '#FDE047',
+    overflow: 'hidden',
+    shadowColor: '#F59E0B',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 3,
+  },
+  ongoingStatusBadge: {
+    backgroundColor: '#D1FAE5',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#A7F3D0',
+  },
+  pulseDotGreen: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#10B981',
+  },
+  ongoingStatusText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#047857',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  pendingStatusBadge: {
+    backgroundColor: '#FEF3C7',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#FDE68A',
+  },
+  pulseDotOrange: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#F59E0B',
+  },
+  pendingStatusText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#92400E',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  breakTimeDisplay: {
+    padding: 16,
+    gap: 12,
+  },
+  breakTimeMain: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  breakTimeInfo: {
+    flex: 1,
+  },
+  breakTimeLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#92400E',
+    marginBottom: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  breakTimeValue: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#78350F',
+    letterSpacing: -0.5,
+  },
+  breakDurationBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    gap: 6,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+  },
+  breakDurationText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#F59E0B',
+  },
+  breakReasonContainer: {
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+  },
+  breakReasonHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 8,
+  },
+  breakReasonLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#92400E',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  breakReasonText: {
+    fontSize: 14,
+    color: '#78350F',
+    lineHeight: 20,
+    fontWeight: '500',
+  },
+  breakPendingFooter: {
+    backgroundColor: '#FDE68A',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  breakPendingFooterText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#92400E',
   },
 });

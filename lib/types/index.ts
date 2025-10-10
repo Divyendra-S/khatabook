@@ -13,6 +13,15 @@ export type LeaveRequest = Tables<'leave_requests'>;
 export type Notification = Tables<'notifications'>;
 export type Organization = Tables<'organizations'>;
 export type EmployeeMonthlyEarnings = Tables<'employee_monthly_earnings'>;
+export type BreakRequest = Tables<'break_requests'>;
+
+// Break-related types
+export interface AttendanceBreak {
+  start_time: string; // ISO timestamp
+  end_time: string; // ISO timestamp
+  duration_minutes: number;
+  notes?: string;
+}
 
 // Enums
 export type UserRole = 'employee' | 'hr' | 'admin';
@@ -34,6 +43,7 @@ export type UserWithEarnings = User & {
 
 export type AttendanceWithUser = AttendanceRecord & {
   user?: Pick<User, 'full_name' | 'employee_id'>;
+  break_requests?: BreakRequest[];
 };
 
 export type SalaryWithUser = SalaryRecord & {

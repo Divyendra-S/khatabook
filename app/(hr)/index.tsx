@@ -4,6 +4,7 @@ import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
 import { useAuth } from '@/hooks/auth/useAuth';
 import { useHRAllEmployeesAttendance } from '@/hooks/queries/useAttendance';
 import { useHRPendingLeaveRequests } from '@/hooks/queries/useLeave';
+import { usePendingBreakRequests } from '@/hooks/queries/useBreakRequests';
 import { useAllUsers } from '@/hooks/queries/useUser';
 import { formatDate, formatDateToISO } from '@/lib/utils/date.utils';
 import { useRouter } from 'expo-router';
@@ -16,6 +17,7 @@ export default function HRDashboard() {
 
   const { data: todayAttendance, isLoading: loadingAttendance, refetch: refetchAttendance } = useHRAllEmployeesAttendance({ date: today });
   const { data: pendingLeaves, isLoading: loadingLeaves, refetch: refetchLeaves } = useHRPendingLeaveRequests();
+  const { data: pendingBreakRequests, isLoading: loadingBreakRequests, refetch: refetchBreakRequests } = usePendingBreakRequests();
   const { data: allUsers, isLoading: loadingUsers, refetch: refetchUsers } = useAllUsers();
 
   const onRefresh = async () => {
@@ -24,6 +26,7 @@ export default function HRDashboard() {
       await Promise.all([
         refetchAttendance(),
         refetchLeaves(),
+        refetchBreakRequests(),
         refetchUsers(),
       ]);
     } finally {
@@ -118,7 +121,7 @@ export default function HRDashboard() {
               </View>
             </View>
 
-            {loadingLeaves ? (
+            {(loadingLeaves || loadingBreakRequests) ? (
               <View style={styles.loadingContainer}>
                 <ActivityIndicator size="small" color="#6366F1" />
               </View>
@@ -141,6 +144,35 @@ export default function HRDashboard() {
                   <View style={styles.pendingBadge}>
                     <Text style={styles.pendingCount}>{pendingLeaves?.length || 0}</Text>
                   </View>
+                </TouchableOpacity>
+
+                <View style={styles.divider} />
+
+                <TouchableOpacity
+                  style={styles.pendingItem}
+                  onPress={() => router.push('/(hr)/break-requests')}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.pendingIconWrapper}>
+                    <View style={styles.pendingIconBgBreak}>
+                      <MaterialCommunityIcons name="coffee" size={24} color="#8B5CF6" />
+                    </View>
+                  </View>
+                  <View style={styles.pendingContent}>
+                    <Text style={styles.pendingText}>Break Requests</Text>
+                    <Text style={styles.pendingSubtext}>
+                      {(pendingBreakRequests && pendingBreakRequests.length > 0)
+                        ? 'Pending approval'
+                        : 'No pending requests'}
+                    </Text>
+                  </View>
+                  {(pendingBreakRequests && pendingBreakRequests.length > 0) ? (
+                    <View style={styles.pendingBadge}>
+                      <Text style={styles.pendingCount}>{pendingBreakRequests.length}</Text>
+                    </View>
+                  ) : (
+                    <Ionicons name="chevron-forward" size={20} color="#94A3B8" />
+                  )}
                 </TouchableOpacity>
               </View>
             )}
@@ -551,5 +583,16 @@ const styles = StyleSheet.create({
   statDivider: {
     height: 1,
     backgroundColor: '#F1F5F9',
+  },
+  pendingIconBgBreak: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: '#EDE9FE',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  breakRequestsScroll: {
+    maxHeight: 200,
   },
 });

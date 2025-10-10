@@ -132,6 +132,13 @@ export default function HRLayout() {
           headerShown: false,
         }}
       />
+      <Tabs.Screen
+        name="break-requests"
+        options={{
+          href: null,
+          headerShown: false,
+        }}
+      />
     </Tabs>
   );
 }

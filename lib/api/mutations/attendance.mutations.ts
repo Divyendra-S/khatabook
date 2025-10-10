@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase/client';
+import { AttendanceBreak } from '@/lib/types';
 
 export const attendanceMutations = {
   /**
@@ -33,7 +34,7 @@ export const attendanceMutations = {
   /**
    * Check out for today
    */
-  checkOut: async (recordId: string, notes?: string) => {
+  checkOut: async (recordId: string, notes?: string, breaks?: AttendanceBreak[]) => {
     const now = new Date();
     const nowISO = now.toISOString();
 
@@ -44,12 +45,19 @@ export const attendanceMutations = {
       throw new Error('Check-out time cannot be in the future');
     }
 
+    const updateData: any = {
+      check_out_time: nowISO,
+      notes,
+    };
+
+    // Add breaks if provided
+    if (breaks) {
+      updateData.breaks = breaks;
+    }
+
     const { data, error } = await supabase
       .from('attendance_records')
-      .update({
-        check_out_time: nowISO,
-        notes,
-      })
+      .update(updateData)
       .eq('id', recordId)
       .select()
       .single();
@@ -69,6 +77,7 @@ export const attendanceMutations = {
     checkOutTime?: string;
     markedBy: string;
     notes?: string;
+    breaks?: AttendanceBreak[];
   }) => {
     // Fetch user's working days to validate
     const { data: userData, error: userError } = await supabase
@@ -130,13 +139,19 @@ export const attendanceMutations = {
 
     if (existingRecord) {
       // Update existing record
+      const updateData: any = {
+        check_in_time: params.checkInTime,
+        check_out_time: params.checkOutTime,
+        notes: params.notes,
+      };
+
+      if (params.breaks) {
+        updateData.breaks = params.breaks;
+      }
+
       const { data, error } = await supabase
         .from('attendance_records')
-        .update({
-          check_in_time: params.checkInTime,
-          check_out_time: params.checkOutTime,
-          notes: params.notes,
-        })
+        .update(updateData)
         .eq('id', existingRecord.id)
         .select()
         .single();
@@ -145,18 +160,24 @@ export const attendanceMutations = {
       return data;
     } else {
       // Insert new record
+      const insertData: any = {
+        user_id: params.userId,
+        date: params.date,
+        check_in_time: params.checkInTime,
+        check_out_time: params.checkOutTime,
+        marked_by: params.markedBy,
+        marked_by_role: 'hr',
+        check_in_method: 'manual',
+        notes: params.notes,
+      };
+
+      if (params.breaks) {
+        insertData.breaks = params.breaks;
+      }
+
       const { data, error } = await supabase
         .from('attendance_records')
-        .insert({
-          user_id: params.userId,
-          date: params.date,
-          check_in_time: params.checkInTime,
-          check_out_time: params.checkOutTime,
-          marked_by: params.markedBy,
-          marked_by_role: 'hr',
-          check_in_method: 'manual',
-          notes: params.notes,
-        })
+        .insert(insertData)
         .select()
         .single();
 
@@ -175,6 +196,7 @@ export const attendanceMutations = {
       check_out_time: string;
       notes: string;
       is_valid_day: boolean;
+      breaks: AttendanceBreak[];
     }>
   ) => {
     // If updating check-in time, validate against working days
@@ -260,5 +282,54 @@ export const attendanceMutations = {
       .eq('id', recordId);
 
     if (error) throw error;
+  },
+
+  /**
+   * Update breaks for an attendance record
+   * Can be used by employees to manage their own breaks after checking out
+   */
+  updateBreaks: async (recordId: string, breaks: AttendanceBreak[]) => {
+    // Fetch the attendance record to validate
+    const { data: record, error: fetchError } = await supabase
+      .from('attendance_records')
+      .select('check_in_time, check_out_time')
+      .eq('id', recordId)
+      .single();
+
+    if (fetchError) throw fetchError;
+
+    if (!record.check_in_time || !record.check_out_time) {
+      throw new Error('Cannot add breaks to incomplete attendance record');
+    }
+
+    // Validate all breaks are within check-in and check-out times
+    const checkIn = record.check_in_time;
+    const checkOut = record.check_out_time;
+
+    for (const brk of breaks) {
+      const breakStart = new Date(brk.start_time);
+      const breakEnd = new Date(brk.end_time);
+      const checkInDate = new Date(checkIn);
+      const checkOutDate = new Date(checkOut);
+
+      if (breakStart < checkInDate || breakEnd > checkOutDate) {
+        throw new Error('Breaks must be within check-in and check-out times');
+      }
+
+      if (breakEnd <= breakStart) {
+        throw new Error('Break end time must be after start time');
+      }
+    }
+
+    // Update the breaks
+    const { data, error } = await supabase
+      .from('attendance_records')
+      .update({ breaks })
+      .eq('id', recordId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
   },
 };

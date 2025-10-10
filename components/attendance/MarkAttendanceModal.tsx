@@ -16,11 +16,17 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuth } from '@/hooks/auth/useAuth';
 import { useAllUsers } from '@/hooks/queries/useUser';
 import { useMarkAttendance, useUpdateAttendance } from '@/hooks/mutations/useAttendanceMutations';
+import { useBreakRequestsByAttendance } from '@/hooks/queries/useBreakRequests';
 import { AttendanceRecord, User } from '@/lib/types';
 import DatePicker from '@/components/ui/DatePicker';
 import TimePicker from '@/components/ui/TimePicker';
 import { useQueryClient } from '@tanstack/react-query';
 import { isWorkingDay, getWeekdayShortName } from '@/lib/utils/workingDays.utils';
+import {
+  calculateApprovedBreakHours,
+  calculateNetHoursWithBreakRequests,
+  formatBreakDurationFromRequests
+} from '@/lib/utils/attendance.utils';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface MarkAttendanceModalProps {
@@ -40,6 +46,12 @@ export default function MarkAttendanceModal({
   const { user } = useAuth();
   const { data: employees } = useAllUsers({ role: 'employee' });
   const queryClient = useQueryClient();
+
+  // Fetch break requests for existing record
+  const { data: breakRequests } = useBreakRequestsByAttendance(
+    existingRecord?.id || '',
+    { enabled: !!existingRecord?.id }
+  );
 
   const getTodayDate = () => {
     const today = new Date();
@@ -281,6 +293,25 @@ export default function MarkAttendanceModal({
     return hours;
   }, [formData.checkInTime, formData.checkOutTime, formData.date, formData.checkOutDate, formData.useSeparateCheckOutDate]);
 
+  // Calculate break hours and net hours
+  const breakHoursData = useMemo(() => {
+    if (!breakRequests || breakRequests.length === 0) {
+      return { hasBreaks: false, breakHours: 0, netHours: hoursPreview };
+    }
+
+    const breakHours = calculateApprovedBreakHours(breakRequests);
+    const netHours = hoursPreview !== null
+      ? calculateNetHoursWithBreakRequests(hoursPreview, breakRequests)
+      : null;
+
+    return {
+      hasBreaks: breakHours > 0,
+      breakHours,
+      netHours,
+      breakSummary: formatBreakDurationFromRequests(breakRequests)
+    };
+  }, [breakRequests, hoursPreview]);
+
   const isLoading = markMutation.isPending || updateMutation.isPending;
 
   return (
@@ -443,26 +474,63 @@ export default function MarkAttendanceModal({
               />
             )}
 
-            {/* Hours Preview */}
+            {/* Hours Preview with Break Information */}
             {hoursPreview !== null && (
-              <View style={[
-                styles.previewCard,
-                hoursPreview < 0 ? styles.previewCardError : styles.previewCardSuccess
-              ]}>
-                <Ionicons
-                  name={hoursPreview < 0 ? "alert-circle" : "time"}
-                  size={20}
-                  color={hoursPreview < 0 ? "#EF4444" : "#6366F1"}
-                />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.previewLabel}>Total Hours</Text>
-                  <Text style={[
-                    styles.previewValue,
-                    hoursPreview < 0 && styles.previewValueError
-                  ]}>
-                    {hoursPreview < 0 ? 'Invalid time range' : `${hoursPreview.toFixed(2)} hours`}
-                  </Text>
+              <View style={styles.hoursBreakdownContainer}>
+                <View style={[
+                  styles.previewCard,
+                  hoursPreview < 0 ? styles.previewCardError : styles.previewCardSuccess
+                ]}>
+                  <Ionicons
+                    name={hoursPreview < 0 ? "alert-circle" : "time"}
+                    size={20}
+                    color={hoursPreview < 0 ? "#EF4444" : "#6366F1"}
+                  />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.previewLabel}>Total Hours</Text>
+                    <Text style={[
+                      styles.previewValue,
+                      hoursPreview < 0 && styles.previewValueError
+                    ]}>
+                      {hoursPreview < 0 ? 'Invalid time range' : `${hoursPreview.toFixed(2)} hours`}
+                    </Text>
+                  </View>
                 </View>
+
+                {/* Break Information - Only show if there are approved breaks */}
+                {breakHoursData.hasBreaks && hoursPreview > 0 && (
+                  <>
+                    <View style={styles.breakInfoCard}>
+                      <MaterialCommunityIcons
+                        name="coffee-outline"
+                        size={20}
+                        color="#F59E0B"
+                      />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.previewLabel}>Break Duration</Text>
+                        <Text style={styles.breakValue}>
+                          {breakHoursData.breakSummary}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.netHoursCard}>
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={20}
+                        color="#10B981"
+                      />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.previewLabel}>Net Working Hours</Text>
+                        <Text style={styles.netHoursValue}>
+                          {breakHoursData.netHours !== null
+                            ? `${breakHoursData.netHours.toFixed(2)} hours`
+                            : '--'}
+                        </Text>
+                      </View>
+                    </View>
+                  </>
+                )}
               </View>
             )}
 
@@ -753,6 +821,40 @@ const styles = StyleSheet.create({
   },
   previewValueError: {
     color: '#EF4444',
+  },
+  hoursBreakdownContainer: {
+    marginBottom: 20,
+    gap: 12,
+  },
+  breakInfoCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 14,
+    borderRadius: 12,
+    backgroundColor: '#FEF3C7',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+  },
+  breakValue: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#92400E',
+  },
+  netHoursCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 14,
+    borderRadius: 12,
+    backgroundColor: '#D1FAE5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  netHoursValue: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#065F46',
   },
   workingDaysInfo: {
     backgroundColor: '#F8FAFC',
