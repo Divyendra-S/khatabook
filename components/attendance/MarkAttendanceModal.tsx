@@ -24,7 +24,6 @@ import { useQueryClient } from '@tanstack/react-query';
 import { isWorkingDay, getWeekdayShortName } from '@/lib/utils/workingDays.utils';
 import {
   calculateApprovedBreakHours,
-  calculateNetHoursWithBreakRequests,
   formatBreakDurationFromRequests
 } from '@/lib/utils/attendance.utils';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -293,24 +292,20 @@ export default function MarkAttendanceModal({
     return hours;
   }, [formData.checkInTime, formData.checkOutTime, formData.date, formData.checkOutDate, formData.useSeparateCheckOutDate]);
 
-  // Calculate break hours and net hours
+  // Calculate break hours info (database handles the actual deduction)
   const breakHoursData = useMemo(() => {
     if (!breakRequests || breakRequests.length === 0) {
-      return { hasBreaks: false, breakHours: 0, netHours: hoursPreview };
+      return { hasBreaks: false, breakHours: 0 };
     }
 
     const breakHours = calculateApprovedBreakHours(breakRequests);
-    const netHours = hoursPreview !== null
-      ? calculateNetHoursWithBreakRequests(hoursPreview, breakRequests)
-      : null;
 
     return {
       hasBreaks: breakHours > 0,
       breakHours,
-      netHours,
       breakSummary: formatBreakDurationFromRequests(breakRequests)
     };
-  }, [breakRequests, hoursPreview]);
+  }, [breakRequests]);
 
   const isLoading = markMutation.isPending || updateMutation.isPending;
 
@@ -499,37 +494,19 @@ export default function MarkAttendanceModal({
 
                 {/* Break Information - Only show if there are approved breaks */}
                 {breakHoursData.hasBreaks && hoursPreview > 0 && (
-                  <>
-                    <View style={styles.breakInfoCard}>
-                      <MaterialCommunityIcons
-                        name="coffee-outline"
-                        size={20}
-                        color="#F59E0B"
-                      />
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.previewLabel}>Break Duration</Text>
-                        <Text style={styles.breakValue}>
-                          {breakHoursData.breakSummary}
-                        </Text>
-                      </View>
+                  <View style={styles.breakInfoCard}>
+                    <MaterialCommunityIcons
+                      name="coffee-outline"
+                      size={20}
+                      color="#F59E0B"
+                    />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.previewLabel}>Break Duration (will be deducted)</Text>
+                      <Text style={styles.breakValue}>
+                        {breakHoursData.breakSummary}
+                      </Text>
                     </View>
-
-                    <View style={styles.netHoursCard}>
-                      <Ionicons
-                        name="checkmark-circle"
-                        size={20}
-                        color="#10B981"
-                      />
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.previewLabel}>Net Working Hours</Text>
-                        <Text style={styles.netHoursValue}>
-                          {breakHoursData.netHours !== null
-                            ? `${breakHoursData.netHours.toFixed(2)} hours`
-                            : '--'}
-                        </Text>
-                      </View>
-                    </View>
-                  </>
+                  </View>
                 )}
               </View>
             )}
@@ -840,21 +817,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: '#92400E',
-  },
-  netHoursCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    padding: 14,
-    borderRadius: 12,
-    backgroundColor: '#D1FAE5',
-    borderWidth: 1,
-    borderColor: '#A7F3D0',
-  },
-  netHoursValue: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#065F46',
   },
   workingDaysInfo: {
     backgroundColor: '#F8FAFC',

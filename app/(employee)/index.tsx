@@ -65,8 +65,23 @@ export default function EmployeeDashboard() {
     return total;
   }, 0);
 
-  const checkInMutation = useCheckIn(userId);
-  const checkOutMutation = useCheckOut(userId);
+  const checkInMutation = useCheckIn(userId, {
+    onSuccess: () => {
+      Alert.alert('Success', 'Checked in successfully!');
+    },
+    onError: (error) => {
+      Alert.alert('Error', error.message || 'Failed to check in. Please try again.');
+    },
+  });
+
+  const checkOutMutation = useCheckOut(userId, {
+    onSuccess: () => {
+      Alert.alert('Success', 'Checked out successfully!');
+    },
+    onError: (error) => {
+      Alert.alert('Error', error.message || 'Failed to check out. Please try again.');
+    },
+  });
 
   const handleCheckIn = () => {
     checkInMutation.mutate({ notes: 'Self check-in' });
@@ -84,9 +99,15 @@ export default function EmployeeDashboard() {
       return;
     }
 
-    if (todayAttendance?.id) {
-      checkOutMutation.mutate({ recordId: todayAttendance.id, notes: 'Self check-out' });
+    if (!todayAttendance?.id) {
+      Alert.alert('Error', 'No attendance record found. Please check in first.');
+      return;
     }
+
+    checkOutMutation.mutate({
+      recordId: todayAttendance.id,
+      notes: 'Self check-out'
+    });
   };
 
   const isCheckedIn = todayAttendance && !todayAttendance.check_out_time;

@@ -85,13 +85,25 @@ export const validateBreakTime = (
 };
 
 /**
- * Format hours to readable string (e.g., "8h 30m")
+ * Format hours to readable string (e.g., "8h 30m" or just "30m")
  */
 export const formatHours = (hours: number): string => {
-  if (!hours) return '0h';
+  if (!hours) return '0m';
   const h = Math.floor(hours);
   const m = Math.round((hours - h) * 60);
-  return m > 0 ? `${h}h ${m}m` : `${h}h`;
+
+  // If less than 1 hour, show only minutes
+  if (h === 0) {
+    return `${m}m`;
+  }
+
+  // If exactly on the hour, show only hours
+  if (m === 0) {
+    return `${h}h`;
+  }
+
+  // Show both hours and minutes
+  return `${h}h ${m}m`;
 };
 
 /**

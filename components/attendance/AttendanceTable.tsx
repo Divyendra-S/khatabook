@@ -9,8 +9,7 @@ import { AttendanceWithUser, AttendanceRecord } from '@/lib/types';
 import { formatTime } from '@/lib/utils/date.utils';
 import {
   formatHours,
-  calculateApprovedBreakHours,
-  calculateNetHoursWithBreakRequests
+  calculateApprovedBreakHours
 } from '@/lib/utils/attendance.utils';
 
 interface AttendanceTableProps {
@@ -96,17 +95,17 @@ export default function AttendanceTable({ data, onEdit, sortField, sortOrder }: 
                   const hasApprovedBreaks = approvedBreakHours > 0;
 
                   if (hasApprovedBreaks) {
-                    const netHours = calculateNetHoursWithBreakRequests(item.total_hours, breakRequests);
+                    // total_hours already has breaks deducted by database
                     return (
                       <View style={styles.hoursWithBreakContainer}>
                         <View style={styles.hoursRow}>
-                          <Text style={styles.netHoursText}>
-                            {formatHours(netHours)}
+                          <Text style={styles.hoursText}>
+                            {formatHours(item.total_hours)}
                           </Text>
-                          <MaterialCommunityIcons name="coffee-outline" size={14} color="#F59E0B" />
+                          <MaterialCommunityIcons name="coffee-outline" size={12} color="#F59E0B" />
                         </View>
                         <Text style={styles.breakSubtext}>
-                          {formatHours(item.total_hours)} - {formatHours(approvedBreakHours)}
+                          -{formatHours(approvedBreakHours)}
                         </Text>
                       </View>
                     );
@@ -274,14 +273,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
   },
-  netHoursText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#10B981',
-  },
   breakSubtext: {
-    fontSize: 10,
-    fontWeight: '500',
-    color: '#64748B',
+    fontSize: 9,
+    fontWeight: '600',
+    color: '#F59E0B',
   },
 });
