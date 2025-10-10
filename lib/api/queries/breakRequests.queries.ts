@@ -127,4 +127,45 @@ export const breakRequestQueries = {
     if (error && error.code !== 'PGRST116') throw error;
     return !!data;
   },
+
+  /**
+   * Check if employee has an active (ongoing) or upcoming (scheduled) break
+   */
+  hasActiveOrUpcomingBreak: async (
+    attendanceRecordId: string
+  ): Promise<{ hasActive: boolean; breakDetails?: BreakRequest }> => {
+    const now = new Date();
+
+    const { data, error } = await supabase
+      .from('break_requests')
+      .select('*')
+      .eq('attendance_record_id', attendanceRecordId)
+      .eq('status', 'approved')
+      .not('approved_start_time', 'is', null)
+      .not('approved_end_time', 'is', null);
+
+    if (error) throw error;
+    if (!data || data.length === 0) {
+      return { hasActive: false };
+    }
+
+    // Check if any break is ongoing or upcoming
+    const activeBreak = data.find((breakReq) => {
+      const startTime = new Date(breakReq.approved_start_time!);
+      const endTime = new Date(breakReq.approved_end_time!);
+
+      // Ongoing: current time is between start and end
+      const isOngoing = now >= startTime && now <= endTime;
+
+      // Upcoming: start time is in the future
+      const isUpcoming = now < startTime;
+
+      return isOngoing || isUpcoming;
+    });
+
+    return {
+      hasActive: !!activeBreak,
+      breakDetails: activeBreak,
+    };
+  },
 };

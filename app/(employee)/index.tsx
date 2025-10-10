@@ -48,8 +48,17 @@ export default function EmployeeDashboard() {
     (req: any) => req.attendance_record_id === todayAttendance?.id && req.status === 'approved'
   ) || [];
 
-  // Check if any approved break is currently ongoing
+  // Check break states
   const now = new Date();
+
+  // Find upcoming break (approved but starts in future)
+  const upcomingBreak = approvedBreakRequests.find((req: any) => {
+    if (!req.approved_start_time || !req.approved_end_time) return false;
+    const startTime = new Date(req.approved_start_time);
+    return now < startTime;
+  });
+
+  // Find ongoing break (currently happening)
   const ongoingBreak = approvedBreakRequests.find((req: any) => {
     if (!req.approved_start_time || !req.approved_end_time) return false;
     const startTime = new Date(req.approved_start_time);
@@ -94,6 +103,17 @@ export default function EmployeeDashboard() {
       Alert.alert(
         'Break in Progress',
         `You cannot check out during a break. Your break ends at ${formatTime(endTime)}. Please wait until your break is complete.`,
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
+    // Prevent checkout if upcoming break is scheduled
+    if (upcomingBreak) {
+      const startTime = new Date(upcomingBreak.approved_start_time);
+      Alert.alert(
+        'Break Scheduled',
+        `You cannot check out yet. You have a scheduled break starting at ${formatTime(startTime)}. Please complete or cancel the break first.`,
         [{ text: 'OK' }]
       );
       return;
@@ -272,10 +292,10 @@ export default function EmployeeDashboard() {
                     <TouchableOpacity
                       activeOpacity={0.7}
                       onPress={handleCheckOut}
-                      disabled={checkOutMutation.isPending || !!ongoingBreak}
+                      disabled={checkOutMutation.isPending || !!ongoingBreak || !!upcomingBreak}
                       style={[
                         styles.checkOutButton,
-                        ongoingBreak && styles.checkOutButtonDisabled,
+                        (ongoingBreak || upcomingBreak) && styles.checkOutButtonDisabled,
                       ]}
                     >
                       {checkOutMutation.isPending ? (
@@ -284,13 +304,64 @@ export default function EmployeeDashboard() {
                         <>
                           <Ionicons name="exit-outline" size={20} color="#FFFFFF" />
                           <Text style={styles.checkOutButtonText}>
-                            {ongoingBreak ? 'On Break - Cannot Check Out' : 'Check Out'}
+                            {ongoingBreak
+                              ? 'On Break - Cannot Check Out'
+                              : upcomingBreak
+                              ? 'Break Scheduled - Cannot Check Out'
+                              : 'Check Out'}
                           </Text>
                         </>
                       )}
                     </TouchableOpacity>
 
-                    {ongoingBreak ? (
+                    {upcomingBreak ? (
+                      <View style={styles.upcomingBreakCard}>
+                        {/* Status Badge */}
+                        <View style={styles.upcomingStatusBadge}>
+                          <View style={styles.pulseDotBlue} />
+                          <Text style={styles.upcomingStatusText}>Break Scheduled</Text>
+                        </View>
+
+                        {/* Time Display */}
+                        <View style={styles.breakTimeDisplay}>
+                          <View style={styles.breakTimeMain}>
+                            <MaterialCommunityIcons name="coffee-outline" size={32} color="#3B82F6" />
+                            <View style={styles.breakTimeInfo}>
+                              <Text style={styles.breakTimeLabel}>Break Time</Text>
+                              <Text style={[styles.breakTimeValue, { color: '#1E40AF' }]}>
+                                {formatTime(new Date(upcomingBreak.approved_start_time))} - {formatTime(new Date(upcomingBreak.approved_end_time))}
+                              </Text>
+                            </View>
+                          </View>
+
+                          <View style={[styles.breakDurationBadge, { backgroundColor: '#DBEAFE', borderColor: '#93C5FD' }]}>
+                            <Ionicons name="timer" size={16} color="#3B82F6" />
+                            <Text style={[styles.breakDurationText, { color: '#3B82F6' }]}>
+                              {Math.floor(calculateBreakDuration(upcomingBreak.approved_start_time, upcomingBreak.approved_end_time) / 60)}h {calculateBreakDuration(upcomingBreak.approved_start_time, upcomingBreak.approved_end_time) % 60}m
+                            </Text>
+                          </View>
+                        </View>
+
+                        {/* Reason */}
+                        {upcomingBreak.reason && (
+                          <View style={styles.breakReasonContainer}>
+                            <View style={styles.breakReasonHeader}>
+                              <Feather name="message-circle" size={14} color="#1E40AF" />
+                              <Text style={[styles.breakReasonLabel, { color: '#1E40AF' }]}>Reason</Text>
+                            </View>
+                            <Text style={[styles.breakReasonText, { color: '#1E3A8A' }]}>{upcomingBreak.reason}</Text>
+                          </View>
+                        )}
+
+                        {/* Footer Message */}
+                        <View style={[styles.breakPendingFooter, { backgroundColor: '#DBEAFE', borderColor: '#93C5FD' }]}>
+                          <MaterialCommunityIcons name="clock-outline" size={16} color="#1E40AF" />
+                          <Text style={[styles.breakPendingFooterText, { color: '#1E40AF' }]}>
+                            Starts at {formatTime(new Date(upcomingBreak.approved_start_time))}
+                          </Text>
+                        </View>
+                      </View>
+                    ) : ongoingBreak ? (
                       <View style={styles.ongoingBreakCard}>
                         {/* Status Badge */}
                         <View style={styles.ongoingStatusBadge}>
@@ -384,7 +455,7 @@ export default function EmployeeDashboard() {
                           <Text style={styles.breakPendingFooterText}>Awaiting HR review and approval</Text>
                         </View>
                       </View>
-                    ) : (
+                    ) : !pendingBreakRequest && !upcomingBreak && !ongoingBreak ? (
                       <TouchableOpacity
                         activeOpacity={0.7}
                         onPress={() => setShowBreakRequestModal(true)}
@@ -393,7 +464,7 @@ export default function EmployeeDashboard() {
                         <MaterialCommunityIcons name="coffee-outline" size={18} color="#F59E0B" />
                         <Text style={styles.breakRequestButtonText}>Request Break</Text>
                       </TouchableOpacity>
-                    )}
+                    ) : null}
                   </>
                 )}
               </>
@@ -952,6 +1023,20 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
+  upcomingBreakCard: {
+    backgroundColor: '#EFF6FF',
+    borderRadius: 16,
+    padding: 0,
+    marginTop: 12,
+    borderWidth: 2,
+    borderColor: '#93C5FD',
+    overflow: 'hidden',
+    shadowColor: '#3B82F6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 3,
+  },
   ongoingBreakCard: {
     backgroundColor: '#ECFDF5',
     borderRadius: 16,
@@ -979,6 +1064,29 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 12,
     elevation: 3,
+  },
+  upcomingStatusBadge: {
+    backgroundColor: '#DBEAFE',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#93C5FD',
+  },
+  pulseDotBlue: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#3B82F6',
+  },
+  upcomingStatusText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#1E40AF',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   ongoingStatusBadge: {
     backgroundColor: '#D1FAE5',

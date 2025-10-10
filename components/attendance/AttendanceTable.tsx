@@ -15,6 +15,7 @@ import {
 interface AttendanceTableProps {
   data: AttendanceWithUser[];
   onEdit: (record: AttendanceRecord) => void;
+  onAssignBreak?: (record: AttendanceWithUser) => void;
   sortField: SortField;
   sortOrder: SortOrder;
 }
@@ -22,7 +23,7 @@ interface AttendanceTableProps {
 export type SortField = 'name' | 'checkIn' | 'checkOut' | 'hours';
 export type SortOrder = 'asc' | 'desc';
 
-export default function AttendanceTable({ data, onEdit, sortField, sortOrder }: AttendanceTableProps) {
+export default function AttendanceTable({ data, onEdit, onAssignBreak, sortField, sortOrder }: AttendanceTableProps) {
 
   const sortedData = [...data].sort((a, b) => {
     let compareA: any;
@@ -56,72 +57,110 @@ export default function AttendanceTable({ data, onEdit, sortField, sortOrder }: 
     <View style={styles.container}>
       <View style={styles.tableContent}>
         {sortedData.map((item, index) => (
-          <TouchableOpacity
+          <View
             key={item.id}
             style={[
               styles.tableRow,
               index % 2 === 0 && styles.tableRowEven,
             ]}
-            onPress={() => onEdit(item as AttendanceRecord)}
-            activeOpacity={0.7}
           >
-            {/* Name */}
-            <View style={[styles.cell, styles.nameCell]}>
-              <Text style={styles.employeeName} numberOfLines={1}>
-                {item.user?.full_name || 'Unknown'}
-              </Text>
-            </View>
+            <TouchableOpacity
+              style={styles.mainRowContent}
+              onPress={() => onEdit(item as AttendanceRecord)}
+              activeOpacity={0.7}
+            >
+              {/* Name */}
+              <View style={[styles.cell, styles.nameCell]}>
+                <Text style={styles.employeeName} numberOfLines={1}>
+                  {item.user?.full_name || 'Unknown'}
+                </Text>
+              </View>
 
-            {/* Check-in */}
-            <View style={[styles.cell, styles.timeCell]}>
-              <Text style={styles.timeText}>
-                {item.check_in_time ? formatTime(new Date(item.check_in_time)) : '--:--'}
-              </Text>
-            </View>
+              {/* Check-in */}
+              <View style={[styles.cell, styles.timeCell]}>
+                <Text style={styles.timeText}>
+                  {item.check_in_time ? formatTime(new Date(item.check_in_time)) : '--:--'}
+                </Text>
+              </View>
 
-            {/* Check-out */}
-            <View style={[styles.cell, styles.timeCell]}>
-              <Text style={styles.timeText}>
-                {item.check_out_time ? formatTime(new Date(item.check_out_time)) : '--:--'}
-              </Text>
-            </View>
+              {/* Check-out */}
+              <View style={[styles.cell, styles.timeCell]}>
+                <Text style={styles.timeText}>
+                  {item.check_out_time ? formatTime(new Date(item.check_out_time)) : '--:--'}
+                </Text>
+              </View>
 
-            {/* Hours */}
-            <View style={[styles.cell, styles.hoursCell]}>
-              {item.total_hours ? (
-                (() => {
-                  const breakRequests = item.break_requests || [];
-                  const approvedBreakHours = calculateApprovedBreakHours(breakRequests);
-                  const hasApprovedBreaks = approvedBreakHours > 0;
+              {/* Hours */}
+              <View style={[styles.cell, styles.hoursCell]}>
+                {item.total_hours ? (
+                  (() => {
+                    const breakRequests = item.break_requests || [];
+                    const approvedBreakHours = calculateApprovedBreakHours(breakRequests);
+                    const hasApprovedBreaks = approvedBreakHours > 0;
 
-                  if (hasApprovedBreaks) {
-                    // total_hours already has breaks deducted by database
-                    return (
-                      <View style={styles.hoursWithBreakContainer}>
-                        <View style={styles.hoursRow}>
-                          <Text style={styles.hoursText}>
-                            {formatHours(item.total_hours)}
+                    if (hasApprovedBreaks) {
+                      // total_hours already has breaks deducted by database
+                      return (
+                        <View style={styles.hoursWithBreakContainer}>
+                          <View style={styles.hoursRow}>
+                            <Text style={styles.hoursText}>
+                              {formatHours(item.total_hours)}
+                            </Text>
+                            <MaterialCommunityIcons name="coffee-outline" size={12} color="#F59E0B" />
+                          </View>
+                          <Text style={styles.breakSubtext}>
+                            -{formatHours(approvedBreakHours)}
                           </Text>
-                          <MaterialCommunityIcons name="coffee-outline" size={12} color="#F59E0B" />
                         </View>
-                        <Text style={styles.breakSubtext}>
-                          -{formatHours(approvedBreakHours)}
-                        </Text>
-                      </View>
+                      );
+                    }
+
+                    return (
+                      <Text style={styles.hoursText}>
+                        {formatHours(item.total_hours)}
+                      </Text>
                     );
-                  }
+                  })()
+                ) : (
+                  <Text style={styles.hoursText}>--</Text>
+                )}
+              </View>
+            </TouchableOpacity>
+
+            {/* Actions */}
+            {onAssignBreak && (
+              <View style={styles.actionsCell}>
+                {(() => {
+                  const hasCheckedIn = !!item.check_in_time;
+                  const hasCheckedOut = !!item.check_out_time;
+                  const isDisabled = !hasCheckedIn || hasCheckedOut || !item.is_valid_day;
 
                   return (
-                    <Text style={styles.hoursText}>
-                      {formatHours(item.total_hours)}
-                    </Text>
+                    <TouchableOpacity
+                      style={[
+                        styles.assignBreakButton,
+                        isDisabled && styles.assignBreakButtonDisabled,
+                      ]}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        if (!isDisabled) {
+                          onAssignBreak(item);
+                        }
+                      }}
+                      disabled={isDisabled}
+                      activeOpacity={isDisabled ? 1 : 0.7}
+                    >
+                      <MaterialCommunityIcons
+                        name="coffee"
+                        size={16}
+                        color={isDisabled ? '#94A3B8' : '#F59E0B'}
+                      />
+                    </TouchableOpacity>
                   );
-                })()
-              ) : (
-                <Text style={styles.hoursText}>--</Text>
-              )}
-            </View>
-          </TouchableOpacity>
+                })()}
+              </View>
+            )}
+          </View>
         ))}
       </View>
     </View>
@@ -188,6 +227,11 @@ export function AttendanceTableHeader({
         <Text style={styles.headerText}>Hours</Text>
         <SortIcon field="hours" />
       </TouchableOpacity>
+
+      {/* Actions header (non-sortable) */}
+      <View style={[styles.headerCell, styles.actionsHeaderCell]}>
+        <Text style={styles.headerText}>Actions</Text>
+      </View>
     </View>
   );
 }
@@ -222,6 +266,7 @@ const styles = StyleSheet.create({
   },
   tableRow: {
     flexDirection: 'row',
+    alignItems: 'center',
     paddingVertical: 14,
     paddingHorizontal: 16,
     borderBottomWidth: 1,
@@ -230,6 +275,11 @@ const styles = StyleSheet.create({
   },
   tableRowEven: {
     backgroundColor: '#FAFBFC',
+  },
+  mainRowContent: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   cell: {
     justifyContent: 'center',
@@ -277,5 +327,30 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontWeight: '600',
     color: '#F59E0B',
+  },
+  actionsCell: {
+    paddingLeft: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionsHeaderCell: {
+    width: 60,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  assignBreakButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: '#FEF3C7',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+  },
+  assignBreakButtonDisabled: {
+    backgroundColor: '#F1F5F9',
+    borderColor: '#E2E8F0',
+    opacity: 0.6,
   },
 });

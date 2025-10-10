@@ -1,8 +1,12 @@
-import { useMutation, useQueryClient, UseMutationOptions } from '@tanstack/react-query';
-import { breakRequestMutations } from '@/lib/api/mutations/breakRequests.mutations';
-import { breakRequestKeys } from '@/hooks/queries/useBreakRequests';
-import { attendanceKeys } from '@/hooks/queries/useAttendance';
-import { BreakRequest } from '@/lib/types';
+import { attendanceKeys } from "@/hooks/queries/useAttendance";
+import { breakRequestKeys } from "@/hooks/queries/useBreakRequests";
+import { breakRequestMutations } from "@/lib/api/mutations/breakRequests.mutations";
+import { BreakRequest } from "@/lib/types";
+import {
+  useMutation,
+  UseMutationOptions,
+  useQueryClient,
+} from "@tanstack/react-query";
 
 /**
  * Hook for creating a break request (employee)
@@ -33,7 +37,9 @@ export const useCreateBreakRequest = (
       // Await query invalidation to ensure refetch completes before modal closes
       await Promise.all([
         // Invalidate user's break requests
-        queryClient.invalidateQueries({ queryKey: breakRequestKeys.my(userId) }),
+        queryClient.invalidateQueries({
+          queryKey: breakRequestKeys.my(userId),
+        }),
 
         // Invalidate pending break requests (for HR)
         queryClient.invalidateQueries({ queryKey: breakRequestKeys.pending() }),
@@ -44,7 +50,9 @@ export const useCreateBreakRequest = (
         }),
 
         // Invalidate today's attendance
-        queryClient.invalidateQueries({ queryKey: attendanceKeys.today(userId) }),
+        queryClient.invalidateQueries({
+          queryKey: attendanceKeys.today(userId),
+        }),
       ]);
 
       // Call the user's onSuccess callback if provided
@@ -133,7 +141,9 @@ export const useRejectBreakRequest = (
       queryClient.invalidateQueries({ queryKey: breakRequestKeys.all });
 
       // Invalidate user's break requests
-      queryClient.invalidateQueries({ queryKey: breakRequestKeys.my(data.user_id) });
+      queryClient.invalidateQueries({
+        queryKey: breakRequestKeys.my(data.user_id),
+      });
     },
     ...options,
   });
@@ -180,6 +190,108 @@ export const useDeleteBreakRequest = (
 
       // Invalidate pending break requests
       queryClient.invalidateQueries({ queryKey: breakRequestKeys.pending() });
+    },
+    ...options,
+  });
+};
+
+/**
+ * Hook for updating an existing break request (HR only)
+ */
+export const useUpdateBreakRequest = (
+  updatedBy: string,
+  options?: UseMutationOptions<
+    BreakRequest,
+    Error,
+    {
+      breakRequestId: string;
+      approvedStartTime: string;
+      approvedEndTime: string;
+      notes?: string;
+    }
+  >
+) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (params) =>
+      breakRequestMutations.updateBreakRequest({
+        ...params,
+        updatedBy,
+      }),
+    onSuccess: (data) => {
+      // Invalidate all break request queries
+      queryClient.invalidateQueries({ queryKey: breakRequestKeys.all });
+
+      // Invalidate attendance queries for the affected user
+      queryClient.invalidateQueries({
+        queryKey: attendanceKeys.today(data.user_id),
+      });
+
+      // Invalidate all attendance records (HR view)
+      queryClient.invalidateQueries({ queryKey: attendanceKeys.all });
+
+      // Invalidate monthly summary for the affected date
+      const requestDate = new Date(data.request_date);
+      queryClient.invalidateQueries({
+        queryKey: attendanceKeys.monthlySummary(
+          data.user_id,
+          requestDate.getMonth(),
+          requestDate.getFullYear()
+        ),
+      });
+    },
+    ...options,
+  });
+};
+
+/**
+ * Hook for HR to directly assign a break to an employee (auto-approved)
+ */
+export const useAssignBreakByHR = (
+  assignedBy: string,
+  options?: UseMutationOptions<
+    BreakRequest,
+    Error,
+    {
+      userId: string;
+      attendanceRecordId: string;
+      requestDate: string;
+      approvedStartTime: string;
+      approvedEndTime: string;
+      notes?: string;
+    }
+  >
+) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (params) =>
+      breakRequestMutations.assignBreakByHR({
+        ...params,
+        assignedBy,
+      }),
+    onSuccess: (data) => {
+      // Invalidate all break request queries
+      queryClient.invalidateQueries({ queryKey: breakRequestKeys.all });
+
+      // Invalidate attendance queries for the affected user
+      queryClient.invalidateQueries({
+        queryKey: attendanceKeys.today(data.user_id),
+      });
+
+      // Invalidate all attendance records (HR view)
+      queryClient.invalidateQueries({ queryKey: attendanceKeys.all });
+
+      // Invalidate monthly summary for the affected date
+      const requestDate = new Date(data.request_date);
+      queryClient.invalidateQueries({
+        queryKey: attendanceKeys.monthlySummary(
+          data.user_id,
+          requestDate.getMonth(),
+          requestDate.getFullYear()
+        ),
+      });
     },
     ...options,
   });

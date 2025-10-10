@@ -211,6 +211,43 @@ export default function MarkAttendanceModal({
       return;
     }
 
+    // Prevent checkout if employee has ongoing or upcoming breaks
+    if (formData.checkOutTime && existingRecord) {
+      const now = new Date();
+      const approvedBreaks = breakRequests?.filter((req) => req.status === 'approved') || [];
+
+      // Check for ongoing or upcoming breaks
+      const activeOrUpcomingBreak = approvedBreaks.find((breakReq) => {
+        if (!breakReq.approved_start_time || !breakReq.approved_end_time) return false;
+
+        const startTime = new Date(breakReq.approved_start_time);
+        const endTime = new Date(breakReq.approved_end_time);
+
+        // Ongoing: current time is between start and end
+        const isOngoing = now >= startTime && now <= endTime;
+
+        // Upcoming: start time is in the future
+        const isUpcoming = now < startTime;
+
+        return isOngoing || isUpcoming;
+      });
+
+      if (activeOrUpcomingBreak) {
+        const startTime = new Date(activeOrUpcomingBreak.approved_start_time!);
+        const endTime = new Date(activeOrUpcomingBreak.approved_end_time!);
+        const isOngoing = now >= startTime && now <= endTime;
+
+        Alert.alert(
+          isOngoing ? 'Break in Progress' : 'Break Scheduled',
+          isOngoing
+            ? `This employee is currently on break (ends at ${endTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}). Please wait until the break is complete before checking them out.`
+            : `This employee has a scheduled break starting at ${startTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}. Please complete or cancel the break before checking them out.`,
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+    }
+
     proceedWithSubmit();
   };
 
