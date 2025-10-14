@@ -338,4 +338,55 @@ export const breakRequestMutations = {
 
     return breakRequest;
   },
+
+  /**
+   * HR removes/deletes an approved break (removes from both break_requests and attendance_records)
+   */
+  removeBreak: async (params: {
+    breakRequestId: string;
+    removedBy: string;
+  }): Promise<void> => {
+    // Get the break request to find the attendance record and break details
+    const { data: breakRequest, error: fetchError } = await supabase
+      .from("break_requests")
+      .select("*, attendance_record:attendance_records(*)")
+      .eq("id", params.breakRequestId)
+      .single();
+
+    if (fetchError) throw fetchError;
+    if (!breakRequest) throw new Error("Break request not found");
+
+    const attendanceRecord = breakRequest.attendance_record as any;
+    if (!attendanceRecord) throw new Error("Attendance record not found");
+
+    // Parse existing breaks from attendance record
+    const existingBreaks = parseBreaks(attendanceRecord.breaks);
+
+    // Remove the break matching this request's start and end times
+    const updatedBreaks = existingBreaks.filter(
+      (br) =>
+        !(
+          br.start_time === breakRequest.approved_start_time &&
+          br.end_time === breakRequest.approved_end_time
+        )
+    );
+
+    // Delete the break request
+    const { error: deleteError } = await supabase
+      .from("break_requests")
+      .delete()
+      .eq("id", params.breakRequestId);
+
+    if (deleteError) throw deleteError;
+
+    // Update attendance record to remove the break
+    const { error: updateAttendanceError } = await supabase
+      .from("attendance_records")
+      .update({
+        breaks: updatedBreaks.length > 0 ? updatedBreaks : null,
+      })
+      .eq("id", attendanceRecord.id);
+
+    if (updateAttendanceError) throw updateAttendanceError;
+  },
 };

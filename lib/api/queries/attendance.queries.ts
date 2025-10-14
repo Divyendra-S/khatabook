@@ -98,7 +98,7 @@ export const attendanceQueries = {
       .from('attendance_records')
       .select(`
         *,
-        user:users(full_name, employee_id)
+        user:users!attendance_records_user_id_fkey(full_name, employee_id)
       `);
 
     if (filters?.startDate) query = query.gte('date', filters.startDate);
@@ -125,7 +125,7 @@ export const attendanceQueries = {
       .from('attendance_records')
       .select(`
         *,
-        user:users(full_name, employee_id, department)
+        user:users!attendance_records_user_id_fkey(full_name, employee_id, department)
       `)
       .eq('date', todayDate)
       .order('check_in_time', { ascending: true });

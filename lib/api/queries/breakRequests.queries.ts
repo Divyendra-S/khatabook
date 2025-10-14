@@ -168,4 +168,118 @@ export const breakRequestQueries = {
       breakDetails: activeBreak,
     };
   },
+
+  /**
+   * Get break requests by month and year for a specific user
+   */
+  getBreaksByMonth: async (
+    userId: string,
+    month: number,
+    year: number
+  ): Promise<BreakRequest[]> => {
+    const startDate = new Date(year, month, 1).toISOString().split('T')[0];
+    const endDate = new Date(year, month + 1, 0).toISOString().split('T')[0];
+
+    const { data, error } = await supabase
+      .from('break_requests')
+      .select(`
+        *,
+        user:users!break_requests_user_id_fkey(full_name, employee_id),
+        attendance_record:attendance_records(date, check_in_time, check_out_time)
+      `)
+      .eq('user_id', userId)
+      .gte('request_date', startDate)
+      .lte('request_date', endDate)
+      .order('request_date', { ascending: false });
+
+    if (error) throw error;
+    return data || [];
+  },
+
+  /**
+   * Get all breaks by month and year (HR view - all employees)
+   */
+  getAllBreaksByMonth: async (
+    month: number,
+    year: number
+  ): Promise<BreakRequest[]> => {
+    const startDate = new Date(year, month, 1).toISOString().split('T')[0];
+    const endDate = new Date(year, month + 1, 0).toISOString().split('T')[0];
+
+    const { data, error } = await supabase
+      .from('break_requests')
+      .select(`
+        *,
+        user:users!break_requests_user_id_fkey(full_name, employee_id),
+        attendance_record:attendance_records(date, check_in_time, check_out_time)
+      `)
+      .gte('request_date', startDate)
+      .lte('request_date', endDate)
+      .order('request_date', { ascending: false });
+
+    if (error) throw error;
+    return data || [];
+  },
+
+  /**
+   * Get break requests for a specific date (HR view)
+   */
+  getBreaksByDate: async (date: string): Promise<BreakRequest[]> => {
+    const { data, error } = await supabase
+      .from('break_requests')
+      .select(`
+        *,
+        user:users!break_requests_user_id_fkey(full_name, employee_id),
+        attendance_record:attendance_records(date, check_in_time, check_out_time)
+      `)
+      .eq('request_date', date)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return data || [];
+  },
+
+  /**
+   * Get break summary for a user by month
+   */
+  getBreakSummaryByMonth: async (
+    userId: string,
+    month: number,
+    year: number
+  ): Promise<{
+    totalBreaks: number;
+    approvedBreaks: number;
+    pendingBreaks: number;
+    rejectedBreaks: number;
+    totalBreakMinutes: number;
+  }> => {
+    const startDate = new Date(year, month, 1).toISOString().split('T')[0];
+    const endDate = new Date(year, month + 1, 0).toISOString().split('T')[0];
+
+    const { data, error } = await supabase
+      .from('break_requests')
+      .select('*')
+      .eq('user_id', userId)
+      .gte('request_date', startDate)
+      .lte('request_date', endDate);
+
+    if (error) throw error;
+
+    const approved = data?.filter((br) => br.status === 'approved') || [];
+    const pending = data?.filter((br) => br.status === 'pending') || [];
+    const rejected = data?.filter((br) => br.status === 'rejected') || [];
+
+    const totalBreakMinutes = approved.reduce(
+      (sum, br) => sum + (br.duration_minutes || 0),
+      0
+    );
+
+    return {
+      totalBreaks: data?.length || 0,
+      approvedBreaks: approved.length,
+      pendingBreaks: pending.length,
+      rejectedBreaks: rejected.length,
+      totalBreakMinutes,
+    };
+  },
 };

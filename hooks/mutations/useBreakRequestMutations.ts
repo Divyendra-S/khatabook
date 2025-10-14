@@ -296,3 +296,55 @@ export const useAssignBreakByHR = (
     ...options,
   });
 };
+
+/**
+ * Hook for HR to remove/delete a break (removes from both break_requests and attendance_records)
+ */
+export const useRemoveBreak = (
+  removedBy: string,
+  options?: UseMutationOptions<
+    void,
+    Error,
+    {
+      breakRequestId: string;
+      userId?: string;
+      requestDate?: string;
+    }
+  >
+) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (params) =>
+      breakRequestMutations.removeBreak({
+        breakRequestId: params.breakRequestId,
+        removedBy,
+      }),
+    onSuccess: (_, variables) => {
+      // Invalidate all break request queries
+      queryClient.invalidateQueries({ queryKey: breakRequestKeys.all });
+
+      // Invalidate attendance queries
+      queryClient.invalidateQueries({ queryKey: attendanceKeys.all });
+
+      if (variables.userId) {
+        // Invalidate user-specific queries
+        queryClient.invalidateQueries({
+          queryKey: attendanceKeys.today(variables.userId),
+        });
+
+        if (variables.requestDate) {
+          const date = new Date(variables.requestDate);
+          queryClient.invalidateQueries({
+            queryKey: attendanceKeys.monthlySummary(
+              variables.userId,
+              date.getMonth(),
+              date.getFullYear()
+            ),
+          });
+        }
+      }
+    },
+    ...options,
+  });
+};

@@ -112,6 +112,20 @@ export default function HRLayout() {
         }}
       />
       <Tabs.Screen
+        name="breaks"
+        options={{
+          title: 'Breaks',
+          headerShown: false,
+          tabBarIcon: ({ color, focused }) => (
+            <MaterialCommunityIcons
+              name={focused ? 'coffee' : 'coffee-outline'}
+              size={26}
+              color={color}
+            />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="profile"
         options={{
           title: 'Profile',

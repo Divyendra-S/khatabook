@@ -15,6 +15,13 @@ export const breakRequestKeys = {
   detail: (id: string) => [...breakRequestKeys.all, 'detail', id] as const,
   hasPendingToday: (userId: string, attendanceRecordId: string) =>
     [...breakRequestKeys.all, 'hasPendingToday', userId, attendanceRecordId] as const,
+  byMonth: (userId: string, month: number, year: number) =>
+    [...breakRequestKeys.all, 'byMonth', userId, month, year] as const,
+  allByMonth: (month: number, year: number) =>
+    [...breakRequestKeys.all, 'allByMonth', month, year] as const,
+  byDate: (date: string) => [...breakRequestKeys.all, 'byDate', date] as const,
+  summaryByMonth: (userId: string, month: number, year: number) =>
+    [...breakRequestKeys.all, 'summary', userId, month, year] as const,
 };
 
 /**
@@ -114,6 +121,80 @@ export const useHasPendingBreakRequestToday = (
       breakRequestQueries.hasPendingBreakRequestToday(userId, attendanceRecordId),
     staleTime: 1000 * 30, // 30 seconds
     enabled: !!userId && !!attendanceRecordId,
+    ...options,
+  });
+};
+
+/**
+ * Hook to fetch break requests by month for a specific user
+ */
+export const useBreaksByMonth = (
+  userId: string,
+  month: number,
+  year: number,
+  options?: UseQueryOptions<BreakRequest[]>
+) => {
+  return useQuery({
+    queryKey: breakRequestKeys.byMonth(userId, month, year),
+    queryFn: () => breakRequestQueries.getBreaksByMonth(userId, month, year),
+    staleTime: 1000 * 60 * 5, // 5 minutes
+    enabled: !!userId,
+    ...options,
+  });
+};
+
+/**
+ * Hook to fetch all breaks by month (HR view)
+ */
+export const useAllBreaksByMonth = (
+  month: number,
+  year: number,
+  options?: UseQueryOptions<BreakRequest[]>
+) => {
+  return useQuery({
+    queryKey: breakRequestKeys.allByMonth(month, year),
+    queryFn: () => breakRequestQueries.getAllBreaksByMonth(month, year),
+    staleTime: 1000 * 60 * 3, // 3 minutes
+    ...options,
+  });
+};
+
+/**
+ * Hook to fetch breaks by specific date (HR view)
+ */
+export const useBreaksByDate = (
+  date: string,
+  options?: UseQueryOptions<BreakRequest[]>
+) => {
+  return useQuery({
+    queryKey: breakRequestKeys.byDate(date),
+    queryFn: () => breakRequestQueries.getBreaksByDate(date),
+    staleTime: 1000 * 60 * 2, // 2 minutes
+    enabled: !!date,
+    ...options,
+  });
+};
+
+/**
+ * Hook to fetch break summary by month for a user
+ */
+export const useBreakSummaryByMonth = (
+  userId: string,
+  month: number,
+  year: number,
+  options?: UseQueryOptions<{
+    totalBreaks: number;
+    approvedBreaks: number;
+    pendingBreaks: number;
+    rejectedBreaks: number;
+    totalBreakMinutes: number;
+  }>
+) => {
+  return useQuery({
+    queryKey: breakRequestKeys.summaryByMonth(userId, month, year),
+    queryFn: () => breakRequestQueries.getBreakSummaryByMonth(userId, month, year),
+    staleTime: 1000 * 60 * 5, // 5 minutes
+    enabled: !!userId,
     ...options,
   });
 };
