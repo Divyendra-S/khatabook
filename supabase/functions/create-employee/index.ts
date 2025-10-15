@@ -61,6 +61,8 @@ serve(async (req) => {
       password,
       fullName,
       phone,
+      aadhaarNumber,
+      dateOfBirth,
       department,
       designation,
       role,
@@ -68,7 +70,12 @@ serve(async (req) => {
       organizationId,
       baseSalary,
       workingDays,
-      dailyWorkingHours
+      dailyWorkingHours,
+      bankName,
+      accountNumber,
+      ifscCode,
+      accountHolderName,
+      branchName
     } = requestBody
 
     // Validate required fields
@@ -198,6 +205,13 @@ serve(async (req) => {
       base_salary: baseSalary !== undefined ? baseSalary : null,
       working_days: (workingDays !== undefined && Array.isArray(workingDays)) ? workingDays : null,
       daily_working_hours: dailyWorkingHours !== undefined ? dailyWorkingHours : null,
+      bank_name: bankName || null,
+      account_number: accountNumber || null,
+      ifsc_code: ifscCode || null,
+      account_holder_name: accountHolderName || null,
+      branch_name: branchName || null,
+      aadhaar_number: aadhaarNumber || null,
+      date_of_birth: dateOfBirth || null,
     }
 
     console.log('Updating user with:', JSON.stringify(updateData))

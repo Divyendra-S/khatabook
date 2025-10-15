@@ -19,6 +19,7 @@ import { useCurrentOrganization } from '@/hooks/queries/useOrganization';
 import { UserRole, WeekDay } from '@/lib/types';
 import DatePicker from '@/components/ui/DatePicker';
 import WorkingDaysSelector from '@/components/employee/WorkingDaysSelector';
+import BankAccountForm from '@/components/employee/BankAccountForm';
 import {
   DEFAULT_WORKING_DAYS,
   calculateMonthlyTotalHours,
@@ -34,6 +35,8 @@ export default function AddEmployeeScreen() {
     email: '',
     phone: '',
     password: '',
+    aadhaarNumber: '',
+    dateOfBirth: '',
     role: 'employee' as UserRole,
     department: '',
     designation: '',
@@ -41,6 +44,11 @@ export default function AddEmployeeScreen() {
     baseSalary: '',
     workingDays: DEFAULT_WORKING_DAYS as WeekDay[],
     dailyWorkingHours: '8',
+    bankName: '',
+    accountNumber: '',
+    ifscCode: '',
+    accountHolderName: '',
+    branchName: '',
   };
 
   const [formData, setFormData] = useState(initialFormState);
@@ -113,6 +121,8 @@ export default function AddEmployeeScreen() {
       password: formData.password.trim() ? formData.password.trim() : undefined, // Optional, will default to email in Edge Function
       fullName: formData.fullName.trim(),
       phone: formData.phone.trim() ? formData.phone.trim() : undefined,
+      aadhaarNumber: formData.aadhaarNumber.trim() || undefined,
+      dateOfBirth: formData.dateOfBirth || undefined,
       department: formData.department.trim() ? formData.department.trim() : undefined,
       designation: formData.designation.trim() ? formData.designation.trim() : undefined,
       role: formData.role,
@@ -120,6 +130,11 @@ export default function AddEmployeeScreen() {
       baseSalary: baseSalaryNum || undefined,
       workingDays: formData.workingDays.length > 0 ? formData.workingDays : undefined,
       dailyWorkingHours: dailyHoursNum || undefined,
+      bankName: formData.bankName.trim() || undefined,
+      accountNumber: formData.accountNumber.trim() || undefined,
+      ifscCode: formData.ifscCode.trim() || undefined,
+      accountHolderName: formData.accountHolderName.trim() || undefined,
+      branchName: formData.branchName.trim() || undefined,
     });
   };
 
@@ -210,6 +225,35 @@ export default function AddEmployeeScreen() {
               />
             </View>
           </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Aadhaar Number</Text>
+            <View style={styles.inputWrapper}>
+              <MaterialCommunityIcons name="card-account-details" size={20} color="#64748B" />
+              <TextInput
+                style={styles.input}
+                placeholder="Enter 12-digit Aadhaar number"
+                value={formData.aadhaarNumber}
+                onChangeText={(text) => {
+                  // Only allow digits and limit to 12 characters
+                  const digitsOnly = text.replace(/\D/g, '');
+                  if (digitsOnly.length <= 12) {
+                    setFormData({ ...formData, aadhaarNumber: digitsOnly });
+                  }
+                }}
+                keyboardType="numeric"
+                maxLength={12}
+                placeholderTextColor="#94A3B8"
+              />
+            </View>
+          </View>
+
+          <DatePicker
+            value={formData.dateOfBirth}
+            onChange={(date) => setFormData({ ...formData, dateOfBirth: date })}
+            label="Date of Birth"
+            maximumDate={new Date()}
+          />
         </View>
 
         <View style={styles.section}>
@@ -355,6 +399,24 @@ export default function AddEmployeeScreen() {
               </View>
             </View>
           )}
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Bank Account Details</Text>
+          <BankAccountForm
+            bankName={formData.bankName}
+            onBankNameChange={(text) => setFormData({ ...formData, bankName: text })}
+            accountNumber={formData.accountNumber}
+            onAccountNumberChange={(text) => setFormData({ ...formData, accountNumber: text })}
+            ifscCode={formData.ifscCode}
+            onIfscCodeChange={(text) => setFormData({ ...formData, ifscCode: text })}
+            accountHolderName={formData.accountHolderName}
+            onAccountHolderNameChange={(text) =>
+              setFormData({ ...formData, accountHolderName: text })
+            }
+            branchName={formData.branchName}
+            onBranchNameChange={(text) => setFormData({ ...formData, branchName: text })}
+          />
         </View>
 
         <TouchableOpacity

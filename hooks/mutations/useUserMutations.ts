@@ -19,16 +19,26 @@ export const useUpdateProfile = (
     department: string;
     designation: string;
     profile_picture_url: string;
+    bank_name: string;
+    account_number: string;
+    ifsc_code: string;
+    account_holder_name: string;
+    branch_name: string;
+    aadhaar_number: string;
+    date_of_birth: string;
   }>>
 ) => {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: (updates) => userMutations.updateProfile(userId, updates),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: userKeys.byId(userId) });
-      queryClient.invalidateQueries({ queryKey: userKeys.current() });
-      queryClient.invalidateQueries({ queryKey: userKeys.list() });
+    onSuccess: async () => {
+      // Use refetchQueries for immediate update instead of just invalidating
+      await Promise.all([
+        queryClient.refetchQueries({ queryKey: userKeys.byId(userId) }),
+        queryClient.refetchQueries({ queryKey: userKeys.current() }),
+        queryClient.refetchQueries({ queryKey: userKeys.list() }),
+      ]);
     },
     ...options,
   });
@@ -49,6 +59,13 @@ export const useUpdateEmployee = (
       designation: string;
       date_of_joining: string;
       is_active: boolean;
+      bank_name: string;
+      account_number: string;
+      ifsc_code: string;
+      account_holder_name: string;
+      branch_name: string;
+      aadhaar_number: string;
+      date_of_birth: string;
     }>;
   }>
 ) => {
@@ -56,9 +73,13 @@ export const useUpdateEmployee = (
 
   return useMutation({
     mutationFn: ({ userId, updates }) => userMutations.updateEmployee(userId, updates),
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: userKeys.byId(variables.userId) });
-      queryClient.invalidateQueries({ queryKey: userKeys.list() });
+    onSuccess: async (_, variables) => {
+      // Use refetchQueries for immediate update instead of just invalidating
+      await Promise.all([
+        queryClient.refetchQueries({ queryKey: userKeys.byId(variables.userId) }),
+        queryClient.refetchQueries({ queryKey: userKeys.list() }),
+        queryClient.refetchQueries({ queryKey: userKeys.current() }),
+      ]);
     },
     ...options,
   });

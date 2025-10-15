@@ -19,6 +19,13 @@ export const organizationMutations = {
     baseSalary?: number;
     workingDays?: string[];
     dailyWorkingHours?: number;
+    bankName?: string;
+    accountNumber?: string;
+    ifscCode?: string;
+    accountHolderName?: string;
+    branchName?: string;
+    aadhaarNumber?: string;
+    dateOfBirth?: string;
   }) => {
     // Call Edge Function which uses service role key securely server-side
     const { data, error } = await supabase.functions.invoke('create-employee', {
@@ -35,6 +42,13 @@ export const organizationMutations = {
         baseSalary: params.baseSalary,
         workingDays: params.workingDays,
         dailyWorkingHours: params.dailyWorkingHours,
+        bankName: params.bankName,
+        accountNumber: params.accountNumber,
+        ifscCode: params.ifscCode,
+        accountHolderName: params.accountHolderName,
+        branchName: params.branchName,
+        aadhaarNumber: params.aadhaarNumber,
+        dateOfBirth: params.dateOfBirth,
       },
     });
 

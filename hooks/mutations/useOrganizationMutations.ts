@@ -23,11 +23,18 @@ export const useCreateEmployee = (
       phone?: string;
       department?: string;
       designation?: string;
-      role?: 'employee' | 'hr';
+      role?: 'employee' | 'hr' | 'admin';
       dateOfJoining?: string;
       baseSalary?: number;
       workingDays?: string[];
       dailyWorkingHours?: number;
+      bankName?: string;
+      accountNumber?: string;
+      ifscCode?: string;
+      accountHolderName?: string;
+      branchName?: string;
+      aadhaarNumber?: string;
+      dateOfBirth?: string;
     }
   >
 ) => {

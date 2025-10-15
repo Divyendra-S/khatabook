@@ -14,6 +14,7 @@ export type Notification = Tables<'notifications'>;
 export type Organization = Tables<'organizations'>;
 export type EmployeeMonthlyEarnings = Tables<'employee_monthly_earnings'>;
 export type BreakRequest = Tables<'break_requests'>;
+export type SalaryHistory = Tables<'salary_history'>;
 
 // Break-related types
 export interface AttendanceBreak {
@@ -57,6 +58,11 @@ export type LeaveRequestWithUser = LeaveRequest & {
 
 export type EarningsWithUser = EmployeeMonthlyEarnings & {
   user?: Pick<User, 'full_name' | 'employee_id' | 'base_salary' | 'hourly_rate'>;
+};
+
+export type SalaryHistoryWithUser = SalaryHistory & {
+  user?: Pick<User, 'full_name' | 'employee_id'>;
+  changedBy?: Pick<User, 'full_name'>;
 };
 
 // Monthly attendance summary
@@ -141,6 +147,12 @@ export interface EmployeeForm {
   baseSalary?: number;
   workingDays?: WeekDay[];
   dailyWorkingHours?: number;
+  // Bank account details
+  bankName?: string;
+  accountNumber?: string;
+  ifscCode?: string;
+  accountHolderName?: string;
+  branchName?: string;
 }
 
 export interface EmployeeSalaryConfig {

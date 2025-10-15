@@ -2,9 +2,10 @@ import { View, Text, StyleSheet, TouchableOpacity, Alert, StatusBar, ActivityInd
 import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
 import { useAuth } from '@/hooks/auth/useAuth';
 import { useSignOut } from '@/hooks/mutations/useAuthMutations';
-import { useResetPassword } from '@/hooks/mutations/useUserMutations';
+import { useResetPassword, useUpdateProfile } from '@/hooks/mutations/useUserMutations';
 import { formatDate } from '@/lib/utils/date.utils';
 import { useRef, useState } from 'react';
+import MonthlySlipsList from '@/components/salary/MonthlySlipsList';
 
 const HEADER_MAX_HEIGHT = 360;
 const HEADER_MIN_HEIGHT = 110;
@@ -14,6 +15,7 @@ export default function ProfileScreen() {
   const { user } = useAuth();
   const signOutMutation = useSignOut();
   const resetPasswordMutation = useResetPassword();
+  const updateProfileMutation = useUpdateProfile(user?.id || '', {});
   const scrollY = useRef(new Animated.Value(0)).current;
 
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -23,6 +25,29 @@ export default function ProfileScreen() {
   const [showOldPassword, setShowOldPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [showPhoneModal, setShowPhoneModal] = useState(false);
+  const [newPhone, setNewPhone] = useState('');
+
+  const handleUpdatePhone = () => {
+    if (!newPhone.trim()) {
+      Alert.alert('Error', 'Please enter a phone number');
+      return;
+    }
+
+    updateProfileMutation.mutate(
+      { phone: newPhone.trim() },
+      {
+        onSuccess: () => {
+          Alert.alert('Success', 'Phone number updated successfully');
+          setShowPhoneModal(false);
+          setNewPhone('');
+        },
+        onError: (error) => {
+          Alert.alert('Error', error.message || 'Failed to update phone number');
+        },
+      }
+    );
+  };
 
   const handleSignOut = () => {
     Alert.alert(
@@ -198,15 +223,25 @@ export default function ProfileScreen() {
 
             <View style={styles.divider} />
 
-            <View style={styles.infoRow}>
+            <TouchableOpacity
+              style={styles.infoRow}
+              onPress={() => {
+                setNewPhone(user?.phone || '');
+                setShowPhoneModal(true);
+              }}
+              activeOpacity={0.7}
+            >
               <View style={styles.infoRowLeft}>
                 <View style={styles.infoIconWrapper}>
                   <Ionicons name="call-outline" size={20} color="#6366F1" />
                 </View>
                 <Text style={styles.infoLabel}>Phone</Text>
               </View>
-              <Text style={styles.infoValue}>{user?.phone || 'Not provided'}</Text>
-            </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Text style={styles.infoValue}>{user?.phone || 'Not provided'}</Text>
+                <Ionicons name="create-outline" size={16} color="#6366F1" />
+              </View>
+            </TouchableOpacity>
 
             <View style={styles.divider} />
 
@@ -248,7 +283,118 @@ export default function ProfileScreen() {
                 </Text>
               </View>
             </View>
+
+            <View style={styles.divider} />
+
+            <View style={styles.infoRow}>
+              <View style={styles.infoRowLeft}>
+                <View style={styles.infoIconWrapper}>
+                  <MaterialCommunityIcons name="card-account-details" size={20} color="#6366F1" />
+                </View>
+                <Text style={styles.infoLabel}>Aadhaar Number</Text>
+              </View>
+              <Text style={styles.infoValue}>{user?.aadhaar_number || 'Not provided'}</Text>
+            </View>
+
+            <View style={styles.divider} />
+
+            <View style={styles.infoRow}>
+              <View style={styles.infoRowLeft}>
+                <View style={styles.infoIconWrapper}>
+                  <Ionicons name="calendar" size={20} color="#6366F1" />
+                </View>
+                <Text style={styles.infoLabel}>Date of Birth</Text>
+              </View>
+              <Text style={styles.infoValue}>
+                {user?.date_of_birth ? formatDate(new Date(user.date_of_birth)) : 'Not provided'}
+              </Text>
+            </View>
           </View>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Bank Account Details</Text>
+
+          {user?.bank_name || user?.account_number || user?.ifsc_code ? (
+            <View style={styles.infoCard}>
+              {user?.bank_name && (
+                <>
+                  <View style={styles.infoRow}>
+                    <View style={styles.infoRowLeft}>
+                      <View style={styles.infoIconWrapper}>
+                        <MaterialCommunityIcons name="bank" size={20} color="#6366F1" />
+                      </View>
+                      <Text style={styles.infoLabel}>Bank Name</Text>
+                    </View>
+                    <Text style={styles.infoValue}>{user.bank_name}</Text>
+                  </View>
+                  <View style={styles.divider} />
+                </>
+              )}
+
+              {user?.account_holder_name && (
+                <>
+                  <View style={styles.infoRow}>
+                    <View style={styles.infoRowLeft}>
+                      <View style={styles.infoIconWrapper}>
+                        <MaterialCommunityIcons name="account-outline" size={20} color="#6366F1" />
+                      </View>
+                      <Text style={styles.infoLabel}>Account Holder</Text>
+                    </View>
+                    <Text style={styles.infoValue}>{user.account_holder_name}</Text>
+                  </View>
+                  <View style={styles.divider} />
+                </>
+              )}
+
+              {user?.account_number && (
+                <>
+                  <View style={styles.infoRow}>
+                    <View style={styles.infoRowLeft}>
+                      <View style={styles.infoIconWrapper}>
+                        <MaterialCommunityIcons name="numeric" size={20} color="#6366F1" />
+                      </View>
+                      <Text style={styles.infoLabel}>Account Number</Text>
+                    </View>
+                    <Text style={styles.infoValue}>{user.account_number}</Text>
+                  </View>
+                  <View style={styles.divider} />
+                </>
+              )}
+
+              {user?.ifsc_code && (
+                <>
+                  <View style={styles.infoRow}>
+                    <View style={styles.infoRowLeft}>
+                      <View style={styles.infoIconWrapper}>
+                        <MaterialCommunityIcons name="bank-transfer" size={20} color="#6366F1" />
+                      </View>
+                      <Text style={styles.infoLabel}>IFSC Code</Text>
+                    </View>
+                    <Text style={styles.infoValue}>{user.ifsc_code}</Text>
+                  </View>
+                  {user?.branch_name && <View style={styles.divider} />}
+                </>
+              )}
+
+              {user?.branch_name && (
+                <View style={styles.infoRow}>
+                  <View style={styles.infoRowLeft}>
+                    <View style={styles.infoIconWrapper}>
+                      <MaterialCommunityIcons name="source-branch" size={20} color="#6366F1" />
+                    </View>
+                    <Text style={styles.infoLabel}>Branch</Text>
+                  </View>
+                  <Text style={styles.infoValue}>{user.branch_name}</Text>
+                </View>
+              )}
+            </View>
+          ) : (
+            <View style={styles.emptyCard}>
+              <MaterialCommunityIcons name="bank-off" size={48} color="#CBD5E1" />
+              <Text style={styles.emptyText}>No bank account details</Text>
+            </View>
+          )}
         </View>
 
         <View style={styles.section}>
@@ -280,6 +426,14 @@ export default function ProfileScreen() {
                 {user?.updated_at ? formatDate(new Date(user.updated_at)) : '-'}
               </Text>
             </View>
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>My Salary Slips</Text>
+
+          <View style={styles.salarySlipsContainer}>
+            <MonthlySlipsList userId={user?.id || ''} />
           </View>
         </View>
 
@@ -445,6 +599,67 @@ export default function ProfileScreen() {
                     <ActivityIndicator size="small" color="#FFFFFF" />
                   ) : (
                     <Text style={styles.resetButtonText}>Reset Password</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Phone Edit Modal */}
+      <Modal
+        visible={showPhoneModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowPhoneModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Update Phone Number</Text>
+              <TouchableOpacity
+                onPress={() => setShowPhoneModal(false)}
+                style={styles.modalCloseButton}
+              >
+                <Ionicons name="close" size={24} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.modalBody}>
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Phone Number</Text>
+                <View style={styles.phoneInputContainer}>
+                  <Ionicons name="call-outline" size={20} color="#64748B" style={{ marginLeft: 16 }} />
+                  <TextInput
+                    style={styles.phoneInput}
+                    value={newPhone}
+                    onChangeText={setNewPhone}
+                    placeholder="Enter phone number"
+                    placeholderTextColor="#94A3B8"
+                    keyboardType="phone-pad"
+                  />
+                </View>
+              </View>
+
+              <View style={styles.modalActions}>
+                <TouchableOpacity
+                  style={styles.cancelButton}
+                  onPress={() => setShowPhoneModal(false)}
+                  disabled={updateProfileMutation.isPending}
+                >
+                  <Text style={styles.cancelButtonText}>Cancel</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.resetButton}
+                  onPress={handleUpdatePhone}
+                  disabled={updateProfileMutation.isPending}
+                >
+                  {updateProfileMutation.isPending ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <Text style={styles.resetButtonText}>Update Phone</Text>
                   )}
                 </TouchableOpacity>
               </View>
@@ -762,5 +977,47 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
+  },
+  emptyCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 32,
+    alignItems: 'center',
+    gap: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 3,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: '#94A3B8',
+    textAlign: 'center',
+  },
+  phoneInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  phoneInput: {
+    flex: 1,
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    fontSize: 16,
+    color: '#0F172A',
+  },
+  salarySlipsContainer: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 3,
   },
 });

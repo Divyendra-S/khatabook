@@ -13,6 +13,13 @@ export const userMutations = {
       department: string;
       designation: string;
       profile_picture_url: string;
+      bank_name: string;
+      account_number: string;
+      ifsc_code: string;
+      account_holder_name: string;
+      branch_name: string;
+      aadhaar_number: string;
+      date_of_birth: string;
     }>
   ) => {
     const { data, error } = await supabase
@@ -90,6 +97,13 @@ export const userMutations = {
       designation: string;
       date_of_joining: string;
       is_active: boolean;
+      bank_name: string;
+      account_number: string;
+      ifsc_code: string;
+      account_holder_name: string;
+      branch_name: string;
+      aadhaar_number: string;
+      date_of_birth: string;
     }>
   ) => {
     const { data, error } = await supabase

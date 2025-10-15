@@ -23,7 +23,9 @@ export const useCurrentUser = (
   return useQuery({
     queryKey: userKeys.current(),
     queryFn: () => userQueries.getCurrentUser(),
-    staleTime: 1000 * 60 * 5,
+    staleTime: 0, // Always consider data stale for immediate refetch after mutations
+    refetchOnMount: true, // Refetch when component mounts
+    refetchOnWindowFocus: true, // Refetch when window regains focus
     ...options,
   });
 };
@@ -38,7 +40,10 @@ export const useUserById = (
   return useQuery({
     queryKey: userKeys.byId(userId),
     queryFn: () => userQueries.getUserById(userId),
+    staleTime: 0, // Always consider data stale for immediate refetch after mutations
     gcTime: 1000 * 60 * 30, // Keep in cache for 30 minutes to prevent clearing during navigation
+    refetchOnMount: true, // Refetch when component mounts
+    refetchOnWindowFocus: true, // Refetch when window regains focus
     enabled: !!userId,
     ...options,
   });

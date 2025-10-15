@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
@@ -11,11 +12,16 @@ import { formatDate } from '@/lib/utils/date.utils';
 import { formatCurrency } from '@/lib/utils/salary.utils';
 import { formatWorkingDays } from '@/lib/utils/workingDays.utils';
 import SalaryProgressCard from '@/components/salary/SalaryProgressCard';
+import SalaryHistoryCard from '@/components/employee/SalaryHistoryCard';
+import EditEmployeeModal from '@/components/employee/EditEmployeeModal';
+import MonthlySlipsList from '@/components/salary/MonthlySlipsList';
 
 export default function EmployeeDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const employeeId = id || '';
   const insets = useSafeAreaInsets();
+
+  const [editModalVisible, setEditModalVisible] = useState(false);
 
   const { data: employee, isLoading: loadingEmployee } = useUserById(employeeId);
   const deleteEmployee = useDeleteEmployee({
@@ -92,6 +98,12 @@ export default function EmployeeDetailScreen() {
           <Text style={styles.headerTitle}>Employee Details</Text>
           <View style={styles.headerActions}>
             <TouchableOpacity
+              style={[styles.actionButton, styles.editButton]}
+              disabled={true}
+            >
+              <Ionicons name="create-outline" size={20} color="#94A3B8" />
+            </TouchableOpacity>
+            <TouchableOpacity
               style={[styles.actionButton, styles.deleteButton]}
               disabled={true}
             >
@@ -114,6 +126,13 @@ export default function EmployeeDetailScreen() {
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Employee Details</Text>
         <View style={styles.headerActions}>
+          <TouchableOpacity
+            style={[styles.actionButton, styles.editButton]}
+            onPress={() => setEditModalVisible(true)}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="create-outline" size={20} color="#6366F1" />
+          </TouchableOpacity>
           <TouchableOpacity
             style={[styles.actionButton, styles.deleteButton]}
             onPress={handleDeleteEmployee}
@@ -211,6 +230,28 @@ export default function EmployeeDetailScreen() {
               </View>
               <Text style={styles.infoValue}>
                 {employee.date_of_joining ? formatDate(new Date(employee.date_of_joining)) : 'Not set'}
+              </Text>
+            </View>
+
+            <View style={styles.divider} />
+
+            <View style={styles.infoRow}>
+              <View style={styles.infoLabelContainer}>
+                <MaterialCommunityIcons name="card-account-details" size={18} color="#64748B" />
+                <Text style={styles.infoLabel}>Aadhaar Number</Text>
+              </View>
+              <Text style={styles.infoValue}>{employee.aadhaar_number || 'Not provided'}</Text>
+            </View>
+
+            <View style={styles.divider} />
+
+            <View style={styles.infoRow}>
+              <View style={styles.infoLabelContainer}>
+                <Ionicons name="calendar" size={18} color="#64748B" />
+                <Text style={styles.infoLabel}>Date of Birth</Text>
+              </View>
+              <Text style={styles.infoValue}>
+                {employee.date_of_birth ? formatDate(new Date(employee.date_of_birth)) : 'Not provided'}
               </Text>
             </View>
           </View>
@@ -344,6 +385,95 @@ export default function EmployeeDetailScreen() {
 
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
+            <MaterialCommunityIcons name="bank" size={20} color="#6366F1" />
+            <Text style={styles.sectionTitle}>Bank Account Details</Text>
+          </View>
+
+          {employee.bank_name || employee.account_number || employee.ifsc_code ? (
+            <View style={styles.infoCard}>
+              {employee.bank_name && (
+                <>
+                  <View style={styles.infoRow}>
+                    <View style={styles.infoLabelContainer}>
+                      <MaterialCommunityIcons name="bank" size={18} color="#64748B" />
+                      <Text style={styles.infoLabel}>Bank Name</Text>
+                    </View>
+                    <Text style={styles.infoValue}>{employee.bank_name}</Text>
+                  </View>
+                  <View style={styles.divider} />
+                </>
+              )}
+
+              {employee.account_holder_name && (
+                <>
+                  <View style={styles.infoRow}>
+                    <View style={styles.infoLabelContainer}>
+                      <MaterialCommunityIcons name="account-outline" size={18} color="#64748B" />
+                      <Text style={styles.infoLabel}>Account Holder</Text>
+                    </View>
+                    <Text style={styles.infoValue}>{employee.account_holder_name}</Text>
+                  </View>
+                  <View style={styles.divider} />
+                </>
+              )}
+
+              {employee.account_number && (
+                <>
+                  <View style={styles.infoRow}>
+                    <View style={styles.infoLabelContainer}>
+                      <MaterialCommunityIcons name="numeric" size={18} color="#64748B" />
+                      <Text style={styles.infoLabel}>Account Number</Text>
+                    </View>
+                    <Text style={styles.infoValue}>{employee.account_number}</Text>
+                  </View>
+                  <View style={styles.divider} />
+                </>
+              )}
+
+              {employee.ifsc_code && (
+                <>
+                  <View style={styles.infoRow}>
+                    <View style={styles.infoLabelContainer}>
+                      <MaterialCommunityIcons name="bank-transfer" size={18} color="#64748B" />
+                      <Text style={styles.infoLabel}>IFSC Code</Text>
+                    </View>
+                    <Text style={styles.infoValue}>{employee.ifsc_code}</Text>
+                  </View>
+                  {employee.branch_name && <View style={styles.divider} />}
+                </>
+              )}
+
+              {employee.branch_name && (
+                <View style={styles.infoRow}>
+                  <View style={styles.infoLabelContainer}>
+                    <MaterialCommunityIcons name="source-branch" size={18} color="#64748B" />
+                    <Text style={styles.infoLabel}>Branch</Text>
+                  </View>
+                  <Text style={styles.infoValue}>{employee.branch_name}</Text>
+                </View>
+              )}
+            </View>
+          ) : (
+            <View style={styles.emptyCard}>
+              <MaterialCommunityIcons name="bank-off" size={48} color="#CBD5E1" />
+              <Text style={styles.emptyText}>No bank account details</Text>
+            </View>
+          )}
+        </View>
+
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <MaterialCommunityIcons name="history" size={20} color="#6366F1" />
+            <Text style={styles.sectionTitle}>Salary History</Text>
+          </View>
+
+          <View style={styles.salaryHistoryContainer}>
+            <SalaryHistoryCard userId={employeeId} />
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
             <MaterialCommunityIcons name="file-document-outline" size={20} color="#6366F1" />
             <Text style={styles.sectionTitle}>Salary Payment History</Text>
           </View>
@@ -389,7 +519,26 @@ export default function EmployeeDetailScreen() {
             </View>
           )}
         </View>
+
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <MaterialCommunityIcons name="file-download-outline" size={20} color="#6366F1" />
+            <Text style={styles.sectionTitle}>Salary Slips</Text>
+          </View>
+
+          <View style={styles.salarySlipsContainer}>
+            <MonthlySlipsList userId={employeeId} />
+          </View>
+        </View>
       </ScrollView>
+
+      {employee && (
+        <EditEmployeeModal
+          visible={editModalVisible}
+          onClose={() => setEditModalVisible(false)}
+          employee={employee}
+        />
+      )}
     </View>
   );
 }
@@ -432,6 +581,9 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  editButton: {
+    backgroundColor: '#EEF2FF',
   },
   deleteButton: {
     backgroundColor: '#FEE2E2',
@@ -689,6 +841,26 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
     padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  salaryHistoryContainer: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  salarySlipsContainer: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
