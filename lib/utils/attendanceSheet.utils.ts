@@ -1,25 +1,24 @@
 import { supabase } from '@/lib/supabase/client';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
+import { Paths, File } from 'expo-file-system';
 import * as MediaLibrary from 'expo-media-library';
 import { Platform, Alert } from 'react-native';
 
 /**
- * Interface for salary slip data
+ * Interface for attendance report data
  */
-export interface SalarySlipData {
+export interface AttendanceReportData {
   employee: {
     name: string;
     employeeId: string;
     phone: string;
     hourlyRate: number;
   };
-  organization: {
-    name: string;
-  };
   period: {
     month: number;
     year: number;
+    monthName: string;
     startDate: string;
     endDate: string;
   };
@@ -30,37 +29,32 @@ export interface SalarySlipData {
   attendance: {
     present: number;
     absent: number;
-    leaves: number;
     totalHours: number;
   };
   dailyAttendance: Array<{
     date: string;
     dayName: string;
-    status: 'P' | 'A' | 'HD' | 'WO' | 'PCO' | 'HDCO';
+    status: 'P' | 'A' | 'WO';
     hours?: number;
   }>;
-  previousBalance?: number;
 }
 
 /**
- * Fetch salary slip data for a user and month
+ * Fetch attendance report data for a user and month
  */
-export async function fetchSalarySlipData(
+export async function fetchAttendanceReportData(
   userId: string,
   month: number,
   year: number
-): Promise<SalarySlipData> {
+): Promise<AttendanceReportData> {
   // Fetch user data
   const { data: user, error: userError } = await supabase
     .from('users')
-    .select('employee_id, full_name, phone, hourly_rate, organization_id, working_days')
+    .select('employee_id, full_name, phone, hourly_rate, working_days')
     .eq('id', userId)
     .single();
 
   if (userError) throw userError;
-
-  // Organization name (hardcoded)
-  const organizationName = 'SAS Migration';
 
   // Fetch monthly earnings
   const { data: earnings, error: earningsError } = await supabase
@@ -91,17 +85,6 @@ export async function fetchSalarySlipData(
 
   if (attendanceError) throw attendanceError;
 
-  // Get previous month balance (if exists)
-  const previousMonth = month === 1 ? 12 : month - 1;
-  const previousYear = month === 1 ? year - 1 : year;
-  const { data: previousEarnings } = await supabase
-    .from('employee_monthly_earnings')
-    .select('earned_salary')
-    .eq('user_id', userId)
-    .eq('month', previousMonth)
-    .eq('year', previousYear)
-    .single();
-
   // Calculate attendance summary
   const presentDays = attendanceRecords?.length || 0;
 
@@ -115,7 +98,7 @@ export async function fetchSalarySlipData(
   const absentDays = workingDaysInMonth - presentDays;
 
   // Generate daily attendance calendar
-  const dailyAttendance: SalarySlipData['dailyAttendance'] = [];
+  const dailyAttendance: AttendanceReportData['dailyAttendance'] = [];
   const attendanceMap = new Map(
     attendanceRecords?.map((record) => [record.date, record]) || []
   );
@@ -151,6 +134,8 @@ export async function fetchSalarySlipData(
     }
   }
 
+  const monthName = startDate.toLocaleDateString('en-US', { month: 'long' });
+
   return {
     employee: {
       name: user.full_name,
@@ -158,12 +143,10 @@ export async function fetchSalarySlipData(
       phone: user.phone || 'N/A',
       hourlyRate: Number(user.hourly_rate) || 0,
     },
-    organization: {
-      name: organizationName,
-    },
     period: {
       month,
       year,
+      monthName: `${monthName} ${year}`,
       startDate: startDate.toLocaleDateString('en-GB', {
         day: '2-digit',
         month: 'short',
@@ -182,11 +165,9 @@ export async function fetchSalarySlipData(
     attendance: {
       present: presentDays,
       absent: absentDays,
-      leaves: 0, // TODO: Implement leaves tracking
       totalHours: Number(earnings.total_hours_worked) || 0,
     },
     dailyAttendance,
-    previousBalance: previousEarnings ? Number(previousEarnings.earned_salary) : 0,
   };
 }
 
@@ -225,11 +206,16 @@ function calculateWorkingDaysInMonth(
 }
 
 /**
- * Generate HTML for salary slip
+ * Get logo URL from Supabase storage
  */
-function generateSalarySlipHTML(data: SalarySlipData): string {
-  const netPayable = data.earnings.earnedSalary + (data.previousBalance || 0);
+function getLogoUrl(): string {
+  return 'https://yardyctualuppxckvobx.supabase.co/storage/v1/object/public/assets/logo.png';
+}
 
+/**
+ * Generate HTML for attendance report
+ */
+function generateAttendanceReportHTML(data: AttendanceReportData): string {
   // Generate calendar HTML
   const weeks: string[][] = [];
   let currentWeek: string[] = [];
@@ -248,27 +234,26 @@ function generateSalarySlipHTML(data: SalarySlipData): string {
     if (index === 0 && dayOfWeek !== 1) {
       const emptyCells = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
       for (let i = 0; i < emptyCells; i++) {
-        currentWeek.push('<td class="calendar-cell"></td>');
+        currentWeek.push('<td style="padding: 8px; border: 1px solid #333333;"></td>');
       }
     }
 
     const dateNum = new Date(day.date).getDate();
-    const dateStr = String(dateNum).padStart(2, '0');
     const monthStr = new Date(day.date).toLocaleDateString('en-US', { month: 'short' });
 
     let cellContent = '';
     if (day.status === 'P' && day.hours) {
       const hours = Math.floor(day.hours);
       const minutes = Math.round((day.hours - hours) * 60);
-      cellContent = `<strong>${dateNum} ${monthStr}</strong><br/>P [${hours}:${String(minutes).padStart(2, '0')}]`;
+      cellContent = `<strong>${dateNum} ${monthStr}</strong><br/>P [${hours}:${String(minutes).padStart(2, '0')}] Hrs`;
     } else if (day.status === 'A') {
       cellContent = `<strong>${dateNum} ${monthStr}</strong><br/>Absent`;
     } else if (day.status === 'WO') {
-      cellContent = `<strong>${dateNum} ${monthStr}</strong><br/>WO`;
+      cellContent = `<strong>${dateNum} ${monthStr}</strong><br/>Week Off`;
     }
 
     currentWeek.push(`
-      <td class="calendar-cell" style="text-align: center;">
+      <td style="padding: 8px; border: 1px solid #333333; text-align: center; font-size: 11px;">
         ${cellContent}
       </td>
     `);
@@ -277,7 +262,7 @@ function generateSalarySlipHTML(data: SalarySlipData): string {
     if (dayOfWeek === 0 || index === data.dailyAttendance.length - 1) {
       // Fill remaining cells
       while (currentWeek.length < 7) {
-        currentWeek.push('<td class="calendar-cell"></td>');
+        currentWeek.push('<td style="padding: 8px; border: 1px solid #333333;"></td>');
       }
       weeks.push(currentWeek);
       currentWeek = [];
@@ -291,115 +276,181 @@ function generateSalarySlipHTML(data: SalarySlipData): string {
     <html>
     <head>
       <meta charset="utf-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 12px; font-size: 11px; }
-        .container { max-width: 800px; margin: 0 auto; }
-        h1 { font-size: 20px; font-weight: 700; margin-bottom: 12px; }
-        h2 { font-size: 14px; font-weight: 600; margin: 12px 0 6px; }
-        .header-info { display: flex; justify-content: space-between; margin-bottom: 12px; border-bottom: 2px solid #000; padding-bottom: 6px; }
-        .info-item { font-size: 11px; }
-        .info-label { font-weight: 600; }
-        table { width: 100%; border-collapse: collapse; margin: 6px 0; }
-        th, td { padding: 6px; text-align: left; border: 1px solid #e2e8f0; font-size: 10px; }
-        th { background-color: #f8fafc; font-weight: 600; }
-        .summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 10px 0; }
-        .summary-item { padding: 6px; border: 1px solid #e2e8f0; text-align: center; }
-        .summary-label { font-size: 9px; color: #64748b; }
-        .summary-value { font-size: 13px; font-weight: 600; margin-top: 2px; }
-        .total-row { font-weight: 700; background-color: #f8fafc; }
-        .calendar-header th { background-color: #6366f1; color: white; text-align: center; padding: 4px; font-size: 9px; }
-        .calendar-cell { padding: 4px; font-size: 8px; }
+        * {
+          margin: 0;
+          padding: 0;
+          box-sizing: border-box;
+        }
+        body {
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Calibri', 'Arial', sans-serif;
+          margin: 0;
+          padding: 20px;
+        }
+
+        /* Company Name */
+        .company-name {
+          font-size: 24px;
+          font-weight: 700;
+          color: #0F172A;
+          margin-bottom: 20px;
+          text-align: center;
+        }
+
+        /* Content */
+        .content {
+          background-color: white;
+        }
+        .container {
+          max-width: 900px;
+          margin: 0 auto;
+        }
+
+        h1 {
+          font-size: 24px;
+          font-weight: 700;
+          margin-bottom: 20px;
+          color: #0F172A;
+        }
+        h2 {
+          font-size: 18px;
+          font-weight: 600;
+          margin: 20px 0 10px;
+          color: #0F172A;
+        }
+
+        .header-info {
+          display: flex;
+          justify-content: space-between;
+          margin-bottom: 20px;
+          border-bottom: 2px solid #000;
+          padding-bottom: 10px;
+        }
+        .info-item {
+          font-size: 12px;
+        }
+        .info-label {
+          font-weight: 600;
+        }
+
+        table {
+          width: 100%;
+          border-collapse: collapse;
+          margin: 10px 0;
+        }
+        th, td {
+          padding: 8px 6px;
+          text-align: left;
+          border: 1px solid #333333;
+          font-size: 10pt;
+          color: #000000;
+        }
+        th {
+          background-color: white;
+          font-weight: normal;
+          font-size: 10pt;
+          text-align: center;
+        }
+
+        .summary-grid {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 10px;
+          margin: 20px 0;
+        }
+        .summary-item {
+          padding: 10px;
+          border: 1px solid #333333;
+          text-align: center;
+        }
+        .summary-label {
+          font-size: 11px;
+          color: #64748b;
+        }
+        .summary-value {
+          font-size: 16px;
+          font-weight: 600;
+          margin-top: 4px;
+        }
+
+        .calendar-header th {
+          background-color: #6366f1;
+          color: white;
+          text-align: center;
+          padding: 8px;
+        }
       </style>
     </head>
     <body>
-      <div class="container">
-        <h1>${data.organization.name}</h1>
-        <h2>Salary Slip (${data.period.startDate} - ${data.period.endDate})</h2>
+      <div class="company-name">SAS Migration</div>
 
-        <div class="header-info">
-          <div class="info-item">
-            <div><span class="info-label">${data.employee.name}</span></div>
+      <div class="content">
+        <div class="container">
+          <h1>Attendance Report - ${data.period.monthName}</h1>
+
+          <div class="header-info">
+            <div class="info-item">
+              <div><span class="info-label">${data.employee.name}</span></div>
+              <div><span class="info-label">Employee ID:</span> ${data.employee.employeeId}</div>
+            </div>
+            <div class="info-item">
+              <div><span class="info-label">Phone:</span> ${data.employee.phone}</div>
+              <div><span class="info-label">Hourly Rate:</span> ₹${data.employee.hourlyRate.toFixed(2)}</div>
+            </div>
           </div>
-          <div class="info-item">
-            <div><span class="info-label">Phone No</span> ${data.employee.phone}</div>
+
+          <h2>Salary Summary</h2>
+          <table>
+            <tbody>
+              <tr>
+                <td><strong>Hourly Rate</strong></td>
+                <td style="text-align: right;">₹${data.employee.hourlyRate.toFixed(2)}</td>
+              </tr>
+              <tr>
+                <td><strong>Hours Worked</strong></td>
+                <td style="text-align: right;">${data.earnings.totalHours.toFixed(2)} hrs</td>
+              </tr>
+              <tr style="background-color: #f8fafc;">
+                <td><strong>Earned Salary</strong></td>
+                <td style="text-align: right;"><strong>₹${data.earnings.earnedSalary.toFixed(2)}</strong></td>
+              </tr>
+            </tbody>
+          </table>
+
+          <h2>Attendance Summary</h2>
+          <div class="summary-grid">
+            <div class="summary-item">
+              <div class="summary-label">Present Days</div>
+              <div class="summary-value">${data.attendance.present}</div>
+            </div>
+            <div class="summary-item">
+              <div class="summary-label">Absent Days</div>
+              <div class="summary-value">${data.attendance.absent}</div>
+            </div>
+            <div class="summary-item">
+              <div class="summary-label">Total Hours</div>
+              <div class="summary-value">${data.attendance.totalHours.toFixed(2)}</div>
+            </div>
           </div>
-          <div class="info-item">
-            <div><span class="info-label">Hourly Salary</span> ₹ ${data.employee.hourlyRate.toFixed(2)}</div>
-          </div>
+
+          <h2>Monthly Calendar</h2>
+          <table>
+            <thead>
+              <tr class="calendar-header">
+                <th>Mon</th>
+                <th>Tue</th>
+                <th>Wed</th>
+                <th>Thu</th>
+                <th>Fri</th>
+                <th>Sat</th>
+                <th>Sun</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${calendarRows}
+            </tbody>
+          </table>
         </div>
-
-        <h2>Payment & Salary</h2>
-        <table>
-          <thead>
-            <tr>
-              <th>Earnings</th>
-              <th>Activity Date</th>
-              <th style="text-align: right;">Amount</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>Hourly Salary ₹ ${data.employee.hourlyRate.toFixed(2)} x ${data.earnings.totalHours.toFixed(2)} Hrs</td>
-              <td>--</td>
-              <td style="text-align: right;">₹ ${data.earnings.earnedSalary.toFixed(2)}</td>
-            </tr>
-            <tr class="total-row">
-              <td>Total Earnings</td>
-              <td></td>
-              <td style="text-align: right;">₹ ${data.earnings.earnedSalary.toFixed(2)}</td>
-            </tr>
-            <tr>
-              <td>Previous Month Closing Balance</td>
-              <td></td>
-              <td style="text-align: right;">₹ ${(data.previousBalance || 0).toFixed(2)}</td>
-            </tr>
-            <tr class="total-row">
-              <td><strong>Net Payable (Earnings + Previous Balance)</strong></td>
-              <td></td>
-              <td style="text-align: right;"><strong>₹ ${netPayable.toFixed(2)}</strong></td>
-            </tr>
-          </tbody>
-        </table>
-
-        <h2>Attendance Summary</h2>
-        <div class="summary-grid">
-          <div class="summary-item">
-            <div class="summary-label">Present</div>
-            <div class="summary-value">${data.attendance.present}</div>
-          </div>
-          <div class="summary-item">
-            <div class="summary-label">Absent</div>
-            <div class="summary-value">${data.attendance.absent}</div>
-          </div>
-          <div class="summary-item">
-            <div class="summary-label">Leaves</div>
-            <div class="summary-value">${data.attendance.leaves}</div>
-          </div>
-          <div class="summary-item">
-            <div class="summary-label">Total Hours</div>
-            <div class="summary-value">${data.attendance.totalHours.toFixed(1)}</div>
-          </div>
-        </div>
-
-        <h2>Monthly Calendar</h2>
-        <table>
-          <thead>
-            <tr class="calendar-header">
-              <th>Mon</th>
-              <th>Tue</th>
-              <th>Wed</th>
-              <th>Thu</th>
-              <th>Fri</th>
-              <th>Sat</th>
-              <th>Sun</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${calendarRows}
-          </tbody>
-        </table>
       </div>
     </body>
     </html>
@@ -407,19 +458,19 @@ function generateSalarySlipHTML(data: SalarySlipData): string {
 }
 
 /**
- * Generate and download salary slip as PDF
+ * Generate and download attendance report as PDF
  */
-export async function downloadSalarySlip(
+export async function downloadAttendanceReport(
   userId: string,
   month: number,
   year: number
 ): Promise<void> {
   try {
     // Fetch data
-    const data = await fetchSalarySlipData(userId, month, year);
+    const data = await fetchAttendanceReportData(userId, month, year);
 
     // Generate HTML
-    const html = generateSalarySlipHTML(data);
+    const html = generateAttendanceReportHTML(data);
 
     // Generate PDF
     const { uri } = await Print.printToFileAsync({
@@ -428,9 +479,9 @@ export async function downloadSalarySlip(
     });
 
     // Create filename
-    const monthName = new Date(year, month - 1).toLocaleDateString('en-US', { month: 'long' });
+    const monthName = data.period.monthName.replace(/\s+/g, '_');
     const employeeName = data.employee.name.replace(/\s+/g, '_');
-    const fileName = `Salary_Slip_${employeeName}_${monthName}_${year}.pdf`;
+    const fileName = `Attendance_Report_${employeeName}_${monthName}.pdf`;
 
     // Save to device
     if (Platform.OS === 'android') {
@@ -445,7 +496,7 @@ export async function downloadSalarySlip(
 
           Alert.alert(
             'Success',
-            `Salary slip has been downloaded to your device.\n\nFile: ${fileName}`,
+            `Attendance report has been downloaded to your device.\n\nFile: ${fileName}`,
             [{ text: 'OK' }]
           );
           return;
@@ -459,37 +510,37 @@ export async function downloadSalarySlip(
       await Sharing.shareAsync(uri, {
         UTI: '.pdf',
         mimeType: 'application/pdf',
-        dialogTitle: `Salary Slip - ${data.employee.name} - ${data.period.startDate}`,
+        dialogTitle: `Attendance Report - ${data.employee.name} - ${data.period.monthName}`,
       });
     } else if (Platform.OS === 'ios') {
       // For iOS, use share sheet
       await Sharing.shareAsync(uri, {
         UTI: '.pdf',
         mimeType: 'application/pdf',
-        dialogTitle: `Salary Slip - ${data.employee.name} - ${data.period.startDate}`,
+        dialogTitle: `Attendance Report - ${data.employee.name} - ${data.period.monthName}`,
       });
     }
   } catch (error) {
-    console.error('Error generating salary slip:', error);
+    console.error('Error generating attendance report:', error);
     throw error;
   }
 }
 
 /**
- * Get available months for salary slips for a user
+ * Get available months for attendance reports for a user
  * Only returns completed months (excludes current month)
  */
-export async function getAvailableMonths(userId: string): Promise<
+export async function getAvailableAttendanceMonths(userId: string): Promise<
   Array<{
     month: number;
     year: number;
+    monthName: string;
     totalHours: number;
-    earnedSalary: number;
   }>
 > {
   const { data, error } = await supabase
     .from('employee_monthly_earnings')
-    .select('month, year, total_hours_worked, earned_salary')
+    .select('month, year, total_hours_worked')
     .eq('user_id', userId)
     .order('year', { ascending: false })
     .order('month', { ascending: false });
@@ -514,11 +565,18 @@ export async function getAvailableMonths(userId: string): Promise<
   });
 
   return (
-    filteredData?.map((record) => ({
-      month: record.month,
-      year: record.year,
-      totalHours: Number(record.total_hours_worked) || 0,
-      earnedSalary: Number(record.earned_salary) || 0,
-    })) || []
+    filteredData?.map((record) => {
+      const monthName = new Date(record.year, record.month - 1).toLocaleDateString('en-US', {
+        month: 'long',
+        year: 'numeric',
+      });
+
+      return {
+        month: record.month,
+        year: record.year,
+        monthName,
+        totalHours: Number(record.total_hours_worked) || 0,
+      };
+    }) || []
   );
 }

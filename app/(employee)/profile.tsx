@@ -5,7 +5,6 @@ import { useSignOut } from '@/hooks/mutations/useAuthMutations';
 import { useResetPassword, useUpdateProfile } from '@/hooks/mutations/useUserMutations';
 import { formatDate } from '@/lib/utils/date.utils';
 import { useRef, useState } from 'react';
-import MonthlySlipsList from '@/components/salary/MonthlySlipsList';
 
 const HEADER_MAX_HEIGHT = 360;
 const HEADER_MIN_HEIGHT = 110;
@@ -426,14 +425,6 @@ export default function ProfileScreen() {
                 {user?.updated_at ? formatDate(new Date(user.updated_at)) : '-'}
               </Text>
             </View>
-          </View>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>My Salary Slips</Text>
-
-          <View style={styles.salarySlipsContainer}>
-            <MonthlySlipsList userId={user?.id || ''} />
           </View>
         </View>
 
@@ -1009,15 +1000,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     fontSize: 16,
     color: '#0F172A',
-  },
-  salarySlipsContainer: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    elevation: 3,
   },
 });

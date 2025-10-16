@@ -5,6 +5,7 @@ import { useAuth } from '@/hooks/auth/useAuth';
 import { useCurrentMonthEarnings } from '@/hooks/queries/useEarnings';
 import { formatCurrency } from '@/lib/utils/salary.utils';
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '@/constants/theme';
+import MonthlySlipsList from '@/components/salary/MonthlySlipsList';
 
 export default function SalaryScreen() {
   const { user } = useAuth();
@@ -130,6 +131,14 @@ export default function SalaryScreen() {
           salary will be processed at the end of the month.
         </Text>
       </View>
+
+      {/* Salary Slips Section */}
+      <View style={styles.salarySlipsSection}>
+        <Text style={styles.sectionTitle}>My Salary Slips</Text>
+        <View style={styles.salarySlipsContainer}>
+          <MonthlySlipsList userId={userId} />
+        </View>
+      </View>
     </ScrollView>
   );
 }
@@ -244,5 +253,22 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     marginLeft: Spacing.sm,
     lineHeight: 18,
+  },
+  salarySlipsSection: {
+    marginHorizontal: Spacing.lg,
+    marginTop: Spacing.lg,
+    marginBottom: Spacing['2xl'],
+  },
+  sectionTitle: {
+    fontSize: Typography.fontSize.lg,
+    fontWeight: Typography.fontWeight.bold,
+    color: Colors.text,
+    marginBottom: Spacing.md,
+  },
+  salarySlipsContainer: {
+    backgroundColor: Colors.background,
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.md,
+    ...Shadows.md,
   },
 });

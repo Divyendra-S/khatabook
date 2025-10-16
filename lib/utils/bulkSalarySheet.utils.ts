@@ -1,6 +1,8 @@
 import { supabase } from '@/lib/supabase/client';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
+import { Paths, File } from 'expo-file-system';
+import * as MediaLibrary from 'expo-media-library';
 import { Platform, Alert } from 'react-native';
 
 /**
@@ -132,25 +134,16 @@ function generateBulkSalarySheetHTML(
     <html>
     <head>
       <meta charset="utf-8">
-      <link rel="preconnect" href="https://fonts.googleapis.com">
-      <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-      <link href="https://fonts.googleapis.com/css2?family=Carlito:ital,wght@0,400;0,700;1,400;1,700&family=Open+Sans:wght@400;600;700&display=swap" rel="stylesheet">
       <style>
         * {
           margin: 0;
           padding: 0;
           box-sizing: border-box;
         }
-        html {
-          height: 100%;
-        }
         body {
-          font-family: 'Carlito', 'Open Sans', 'Calibri', 'Arial', sans-serif;
-          margin: -20px;
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Calibri', 'Arial', sans-serif;
+          margin: 0;
           padding: 0;
-          min-height: calc(100% + 40px);
-          display: flex;
-          flex-direction: column;
         }
 
         /* Header Strip */
@@ -160,21 +153,15 @@ function generateBulkSalarySheetHTML(
           text-align: center;
         }
         .header-content {
-          display: flex;
-          flex-direction: row;
-          align-items: center;
-          justify-content: center;
-          gap: 15px;
-          padding: 0 40px;
-          max-width: 100%;
+          display: inline-block;
+          text-align: center;
         }
         .logo {
+          display: inline-block;
           width: 160px;
           height: 160px;
-          flex-shrink: 0;
-          display: flex;
-          align-items: center;
-          justify-content: center;
+          vertical-align: middle;
+          margin-right: 15px;
         }
         .logo img {
           width: 100%;
@@ -182,20 +169,19 @@ function generateBulkSalarySheetHTML(
           object-fit: contain;
         }
         .company-name {
+          display: inline-block;
+          vertical-align: middle;
           color: white;
           font-size: 42pt;
           font-weight: bold;
-          font-family: 'Carlito', 'Open Sans', 'Calibri', 'Arial', sans-serif;
           letter-spacing: 2px;
           line-height: 1.2;
-          flex-shrink: 0;
           text-align: center;
         }
 
         /* Content */
         .content {
-          flex: 1;
-          padding: 40px;
+          padding: 30px 20px 100px 20px;
           background-color: white;
         }
         .table-container {
@@ -207,24 +193,21 @@ function generateBulkSalarySheetHTML(
         table {
           width: 100%;
           border-collapse: collapse;
-          font-family: 'Carlito', 'Open Sans', 'Calibri', 'Arial', sans-serif;
         }
         th {
-          padding: 10px 6px;
+          padding: 8px 4px;
           text-align: center;
           font-weight: normal;
-          font-size: 11pt;
-          color: #000000;
-          border: 1px solid #333333;
-          background-color: white;
-          font-family: 'Carlito', 'Open Sans', 'Calibri', 'Arial', sans-serif;
-        }
-        td {
-          padding: 8px 6px;
           font-size: 10pt;
           color: #000000;
           border: 1px solid #333333;
-          font-family: 'Carlito', 'Open Sans', 'Calibri', 'Arial', sans-serif;
+          background-color: white;
+        }
+        td {
+          padding: 6px 4px;
+          font-size: 9pt;
+          color: #000000;
+          border: 1px solid #333333;
         }
 
         /* Footer Strip */
@@ -233,12 +216,14 @@ function generateBulkSalarySheetHTML(
           color: white;
           padding: 15px 20px;
           text-align: center;
-          margin-top: auto;
+          position: fixed;
+          bottom: 0;
+          left: 0;
+          right: 0;
         }
         .footer-content {
           font-size: 9pt;
           line-height: 1.6;
-          font-family: 'Carlito', 'Open Sans', 'Calibri', 'Arial', sans-serif;
         }
       </style>
     </head>
@@ -315,18 +300,46 @@ export async function downloadBulkSalarySheet(
       base64: false,
     });
 
-    // Share/download the PDF
-    if (Platform.OS === 'ios' || Platform.OS === 'android') {
-      const isAvailable = await Sharing.isAvailableAsync();
-      if (isAvailable) {
-        await Sharing.shareAsync(uri, {
-          UTI: '.pdf',
-          mimeType: 'application/pdf',
-          dialogTitle: `Salary Sheet - ${getMonthName(month)} ${year}`,
-        });
-      } else {
-        throw new Error('Sharing is not available on this device');
+    // Create filename
+    const monthName = getMonthName(month);
+    const fileName = `Salary_Sheet_${monthName}_${year}.pdf`;
+
+    // Save to device
+    if (Platform.OS === 'android') {
+      try {
+        // Try to save to Downloads using MediaLibrary
+        // Note: This only works in development builds, not in Expo Go
+        const { status } = await MediaLibrary.requestPermissionsAsync(false);
+
+        if (status === 'granted') {
+          const asset = await MediaLibrary.createAssetAsync(uri);
+          await MediaLibrary.createAlbumAsync('Download', asset, false);
+
+          Alert.alert(
+            'Success',
+            `Salary sheet has been downloaded to your device.\n\nFile: ${fileName}`,
+            [{ text: 'OK' }]
+          );
+          return;
+        }
+      } catch (error) {
+        // MediaLibrary not available (Expo Go) or permission error
+        console.log('MediaLibrary not available, using share instead:', error);
       }
+
+      // Fall back to share dialog
+      await Sharing.shareAsync(uri, {
+        UTI: '.pdf',
+        mimeType: 'application/pdf',
+        dialogTitle: `Salary Sheet - ${getMonthName(month)} ${year}`,
+      });
+    } else if (Platform.OS === 'ios') {
+      // For iOS, use share sheet
+      await Sharing.shareAsync(uri, {
+        UTI: '.pdf',
+        mimeType: 'application/pdf',
+        dialogTitle: `Salary Sheet - ${getMonthName(month)} ${year}`,
+      });
     }
   } catch (error) {
     console.error('Error generating bulk salary sheet:', error);

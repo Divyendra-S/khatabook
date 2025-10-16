@@ -11,6 +11,7 @@ import { useDeleteEmployee } from '@/hooks/mutations/useUserMutations';
 import { formatDate } from '@/lib/utils/date.utils';
 import { formatCurrency } from '@/lib/utils/salary.utils';
 import { formatWorkingDays } from '@/lib/utils/workingDays.utils';
+import { downloadAttendanceReport } from '@/lib/utils/attendanceSheet.utils';
 import SalaryProgressCard from '@/components/salary/SalaryProgressCard';
 import SalaryHistoryCard from '@/components/employee/SalaryHistoryCard';
 import EditEmployeeModal from '@/components/employee/EditEmployeeModal';
@@ -22,6 +23,8 @@ export default function EmployeeDetailScreen() {
   const insets = useSafeAreaInsets();
 
   const [editModalVisible, setEditModalVisible] = useState(false);
+  const [selectedReportMonth, setSelectedReportMonth] = useState(new Date());
+  const [downloadingReport, setDownloadingReport] = useState(false);
 
   const { data: employee, isLoading: loadingEmployee } = useUserById(employeeId);
   const deleteEmployee = useDeleteEmployee({
@@ -85,6 +88,39 @@ export default function EmployeeDetailScreen() {
         },
       ]
     );
+  };
+
+  const isCurrentReportMonth =
+    selectedReportMonth.getMonth() === new Date().getMonth() &&
+    selectedReportMonth.getFullYear() === new Date().getFullYear();
+
+  const previousReportMonth = () => {
+    setSelectedReportMonth(prev => new Date(prev.getFullYear(), prev.getMonth() - 1));
+  };
+
+  const nextReportMonth = () => {
+    const now = new Date();
+    if (selectedReportMonth.getMonth() < now.getMonth() ||
+        selectedReportMonth.getFullYear() < now.getFullYear()) {
+      setSelectedReportMonth(prev => new Date(prev.getFullYear(), prev.getMonth() + 1));
+    }
+  };
+
+  const handleDownloadAttendanceReport = async () => {
+    try {
+      setDownloadingReport(true);
+      await downloadAttendanceReport(
+        employeeId,
+        selectedReportMonth.getMonth() + 1,
+        selectedReportMonth.getFullYear()
+      );
+      Alert.alert('Success', 'Attendance report downloaded successfully');
+    } catch (error) {
+      console.error('Download error:', error);
+      Alert.alert('Error', 'Failed to generate attendance report');
+    } finally {
+      setDownloadingReport(false);
+    }
   };
 
   // Show loading state if still loading OR if employee data is not available yet
@@ -530,6 +566,86 @@ export default function EmployeeDetailScreen() {
             <MonthlySlipsList userId={employeeId} />
           </View>
         </View>
+
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <MaterialCommunityIcons name="calendar-text" size={20} color="#6366F1" />
+            <Text style={styles.sectionTitle}>Attendance Reports</Text>
+          </View>
+
+          <View style={styles.attendanceReportCard}>
+            {/* Month Selector */}
+            <View style={styles.reportMonthSelector}>
+              <TouchableOpacity
+                onPress={previousReportMonth}
+                style={styles.reportMonthButton}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="chevron-back" size={20} color="#6366F1" />
+              </TouchableOpacity>
+
+              <View style={styles.reportMonthTextContainer}>
+                <MaterialCommunityIcons name="calendar-month" size={18} color="#6366F1" />
+                <Text style={styles.reportMonthText}>
+                  {selectedReportMonth.toLocaleDateString('en-US', {
+                    month: 'long',
+                    year: 'numeric'
+                  })}
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                onPress={nextReportMonth}
+                style={[
+                  styles.reportMonthButton,
+                  isCurrentReportMonth && styles.reportMonthButtonDisabled
+                ]}
+                disabled={isCurrentReportMonth}
+                activeOpacity={0.7}
+              >
+                <Ionicons
+                  name="chevron-forward"
+                  size={20}
+                  color={isCurrentReportMonth ? '#CBD5E1' : '#6366F1'}
+                />
+              </TouchableOpacity>
+            </View>
+
+            {/* Download Info */}
+            <View style={styles.reportInfo}>
+              <Ionicons name="information-circle-outline" size={16} color="#64748B" />
+              <Text style={styles.reportInfoText}>
+                Download complete attendance report with salary details for {selectedReportMonth.toLocaleDateString('en-US', { month: 'long' })}
+              </Text>
+            </View>
+
+            {/* Download Button */}
+            <TouchableOpacity
+              style={[
+                styles.reportDownloadButton,
+                (isCurrentReportMonth || downloadingReport) && styles.reportDownloadButtonDisabled
+              ]}
+              onPress={handleDownloadAttendanceReport}
+              disabled={isCurrentReportMonth || downloadingReport}
+              activeOpacity={0.7}
+            >
+              {downloadingReport ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <>
+                  <Ionicons name="download-outline" size={20} color="#FFFFFF" />
+                  <Text style={styles.reportDownloadButtonText}>Download PDF Report</Text>
+                </>
+              )}
+            </TouchableOpacity>
+
+            {isCurrentReportMonth && (
+              <Text style={styles.reportNote}>
+                Reports available after month completes
+              </Text>
+            )}
+          </View>
+        </View>
       </ScrollView>
 
       {employee && (
@@ -866,5 +982,85 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 8,
     elevation: 2,
+  },
+  attendanceReportCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  reportMonthSelector: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+    paddingHorizontal: 8,
+  },
+  reportMonthButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: '#EEF2FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  reportMonthButtonDisabled: {
+    backgroundColor: '#F1F5F9',
+    opacity: 0.5,
+  },
+  reportMonthTextContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  reportMonthText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#0F172A',
+  },
+  reportInfo: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    backgroundColor: '#F8FAFC',
+    padding: 12,
+    borderRadius: 10,
+    marginBottom: 16,
+  },
+  reportInfoText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#64748B',
+    lineHeight: 18,
+  },
+  reportDownloadButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#6366F1',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    gap: 8,
+  },
+  reportDownloadButtonDisabled: {
+    backgroundColor: '#CBD5E1',
+    opacity: 0.6,
+  },
+  reportDownloadButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  reportNote: {
+    fontSize: 12,
+    color: '#F59E0B',
+    textAlign: 'center',
+    marginTop: 12,
+    fontStyle: 'italic',
   },
 });

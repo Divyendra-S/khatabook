@@ -155,7 +155,7 @@ export default function HRSalaryScreen() {
               >
                 <View style={styles.monthSelectorLeft}>
                   <MaterialCommunityIcons name="calendar-month" size={20} color="#64748B" />
-                  <Text style={styles.monthSelectorText}>
+                  <Text style={styles.monthSelectorText} numberOfLines={1} ellipsizeMode="tail">
                     {selectedMonth ? selectedMonth.monthName : 'Select Month'}
                   </Text>
                 </View>
@@ -542,11 +542,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
+    flex: 1,
   },
   monthSelectorText: {
     fontSize: 15,
     fontWeight: '600',
     color: '#0F172A',
+    flex: 1,
   },
   noMonthsHint: {
     flexDirection: 'row',

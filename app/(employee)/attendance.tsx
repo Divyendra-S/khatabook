@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, StatusBar, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, StatusBar, RefreshControl, Alert } from 'react-native';
 import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
 import { useAuth } from '@/hooks/auth/useAuth';
 import { useAttendanceByDateRange } from '@/hooks/queries/useAttendance';
 import { formatDate, formatTime, getFirstDayOfMonth, getLastDayOfMonth } from '@/lib/utils/date.utils';
 import { formatHours, getAttendanceStatus } from '@/lib/utils/attendance.utils';
+import { downloadAttendanceReport } from '@/lib/utils/attendanceSheet.utils';
 import { AttendanceRecord } from '@/lib/types';
 
 export default function AttendanceScreen() {
@@ -13,6 +14,7 @@ export default function AttendanceScreen() {
 
   const [selectedMonth, setSelectedMonth] = useState(new Date());
   const [refreshing, setRefreshing] = useState(false);
+  const [downloading, setDownloading] = useState(false);
   const startDate = getFirstDayOfMonth(selectedMonth).toISOString().split('T')[0];
   const endDate = getLastDayOfMonth(selectedMonth).toISOString().split('T')[0];
 
@@ -24,6 +26,23 @@ export default function AttendanceScreen() {
       await refetch();
     } finally {
       setRefreshing(false);
+    }
+  };
+
+  const handleDownloadReport = async () => {
+    try {
+      setDownloading(true);
+      await downloadAttendanceReport(
+        userId,
+        selectedMonth.getMonth() + 1,
+        selectedMonth.getFullYear()
+      );
+      Alert.alert('Success', 'Attendance report downloaded successfully');
+    } catch (error) {
+      console.error('Download error:', error);
+      Alert.alert('Error', 'Failed to generate attendance report');
+    } finally {
+      setDownloading(false);
     }
   };
 
@@ -147,6 +166,40 @@ export default function AttendanceScreen() {
             color={isCurrentMonth ? '#CBD5E1' : '#6366F1'}
           />
         </TouchableOpacity>
+      </View>
+
+      {/* Download Report Section */}
+      <View style={styles.downloadSection}>
+        <View style={styles.downloadHeader}>
+          <Ionicons name="document-text-outline" size={20} color="#6366F1" />
+          <Text style={styles.downloadTitle}>Monthly Attendance Report</Text>
+        </View>
+        <Text style={styles.downloadHint}>
+          Download complete attendance report with salary details
+        </Text>
+        <TouchableOpacity
+          style={[
+            styles.downloadButton,
+            (isCurrentMonth || !records || records.length === 0) && styles.downloadButtonDisabled
+          ]}
+          onPress={handleDownloadReport}
+          disabled={isCurrentMonth || !records || records.length === 0 || downloading}
+          activeOpacity={0.7}
+        >
+          {downloading ? (
+            <ActivityIndicator size="small" color="#FFFFFF" />
+          ) : (
+            <>
+              <Ionicons name="download-outline" size={20} color="#FFFFFF" />
+              <Text style={styles.downloadButtonText}>Download PDF Report</Text>
+            </>
+          )}
+        </TouchableOpacity>
+        {isCurrentMonth && (
+          <Text style={styles.downloadNote}>
+            Reports available after month completes
+          </Text>
+        )}
       </View>
 
       {isLoading ? (
@@ -349,5 +402,61 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#94A3B8',
     textAlign: 'center',
+  },
+  downloadSection: {
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 20,
+    marginTop: 12,
+    marginBottom: 8,
+    padding: 16,
+    borderRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  downloadHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  downloadTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#0F172A',
+  },
+  downloadHint: {
+    fontSize: 13,
+    color: '#64748B',
+    marginBottom: 12,
+    lineHeight: 18,
+  },
+  downloadButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#6366F1',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    gap: 8,
+  },
+  downloadButtonDisabled: {
+    backgroundColor: '#CBD5E1',
+    opacity: 0.6,
+  },
+  downloadButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  downloadNote: {
+    fontSize: 12,
+    color: '#F59E0B',
+    textAlign: 'center',
+    marginTop: 8,
+    fontStyle: 'italic',
   },
 });
