@@ -13,6 +13,7 @@ export interface SalarySlipData {
     employeeId: string;
     phone: string;
     hourlyRate: number;
+    aadhaarNumber?: string;
   };
   organization: {
     name: string;
@@ -25,6 +26,7 @@ export interface SalarySlipData {
   };
   earnings: {
     totalHours: number;
+    expectedHours: number;
     earnedSalary: number;
   };
   attendance: {
@@ -53,7 +55,7 @@ export async function fetchSalarySlipData(
   // Fetch user data
   const { data: user, error: userError } = await supabase
     .from('users')
-    .select('employee_id, full_name, phone, hourly_rate, organization_id, working_days')
+    .select('employee_id, full_name, phone, hourly_rate, organization_id, working_days, aadhaar_number')
     .eq('id', userId)
     .single();
 
@@ -71,7 +73,11 @@ export async function fetchSalarySlipData(
     .eq('year', year)
     .single();
 
-  if (earningsError) throw earningsError;
+  // If no earnings record exists, throw a user-friendly error
+  if (earningsError && earningsError.code !== 'PGRST116') throw earningsError;
+  if (!earnings) {
+    throw new Error('No salary data found for this month. Please ensure the month has ended and salary has been calculated.');
+  }
 
   // Calculate date range
   const startDate = new Date(year, month - 1, 1);
@@ -157,6 +163,7 @@ export async function fetchSalarySlipData(
       employeeId: user.employee_id,
       phone: user.phone || 'N/A',
       hourlyRate: Number(user.hourly_rate) || 0,
+      aadhaarNumber: user.aadhaar_number || undefined,
     },
     organization: {
       name: organizationName,
@@ -177,6 +184,7 @@ export async function fetchSalarySlipData(
     },
     earnings: {
       totalHours: Number(earnings.total_hours_worked) || 0,
+      expectedHours: Number(earnings.expected_hours) || 0,
       earnedSalary: Number(earnings.earned_salary) || 0,
     },
     attendance: {
@@ -228,7 +236,7 @@ function calculateWorkingDaysInMonth(
  * Generate HTML for salary slip
  */
 function generateSalarySlipHTML(data: SalarySlipData): string {
-  const netPayable = data.earnings.earnedSalary + (data.previousBalance || 0);
+  const logoUrl = 'https://yardyctualuppxckvobx.supabase.co/storage/v1/object/public/assets/logo.png';
 
   // Generate calendar HTML
   const weeks: string[][] = [];
@@ -255,16 +263,18 @@ function generateSalarySlipHTML(data: SalarySlipData): string {
     const dateNum = new Date(day.date).getDate();
     const dateStr = String(dateNum).padStart(2, '0');
     const monthStr = new Date(day.date).toLocaleDateString('en-US', { month: 'short' });
+    const isSunday = dayOfWeek === 0;
+    const sundayStyle = isSunday ? 'color: #EF4444;' : '';
 
     let cellContent = '';
     if (day.status === 'P' && day.hours) {
       const hours = Math.floor(day.hours);
       const minutes = Math.round((day.hours - hours) * 60);
-      cellContent = `<strong>${dateNum} ${monthStr}</strong><br/>P [${hours}:${String(minutes).padStart(2, '0')}]`;
+      cellContent = `<strong style="${sundayStyle}">${dateNum} ${monthStr}</strong><br/><span style="font-size: 8px; ${sundayStyle}">${hours}:${String(minutes).padStart(2, '0')}</span>`;
     } else if (day.status === 'A') {
-      cellContent = `<strong>${dateNum} ${monthStr}</strong><br/>Absent`;
+      cellContent = `<strong style="${sundayStyle}">${dateNum} ${monthStr}</strong><br/><span style="font-size: 8px; ${sundayStyle}">Ab.</span>`;
     } else if (day.status === 'WO') {
-      cellContent = `<strong>${dateNum} ${monthStr}</strong><br/>WO`;
+      cellContent = `<strong style="${sundayStyle}">${dateNum} ${monthStr}</strong><br/><span style="font-size: 8px; ${sundayStyle}">WO</span>`;
     }
 
     currentWeek.push(`
@@ -296,7 +306,10 @@ function generateSalarySlipHTML(data: SalarySlipData): string {
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 12px; font-size: 11px; }
         .container { max-width: 800px; margin: 0 auto; }
-        h1 { font-size: 20px; font-weight: 700; margin-bottom: 12px; }
+        .header { text-align: center; margin-bottom: 20px; }
+        .logo-container { display: inline-block; background-color: white; padding: 10px; margin-bottom: 10px; }
+        .logo { width: 80px; height: 80px; object-fit: contain; }
+        h1 { font-size: 18px; font-weight: 700; margin-bottom: 8px; text-align: center; }
         h2 { font-size: 14px; font-weight: 600; margin: 12px 0 6px; }
         .header-info { display: flex; justify-content: space-between; margin-bottom: 12px; border-bottom: 2px solid #000; padding-bottom: 6px; }
         .info-item { font-size: 11px; }
@@ -315,50 +328,64 @@ function generateSalarySlipHTML(data: SalarySlipData): string {
     </head>
     <body>
       <div class="container">
-        <h1>${data.organization.name}</h1>
+        <div class="header">
+          <div class="logo-container">
+            <img src="${logoUrl}" alt="Logo" class="logo" />
+          </div>
+          <h1>SAS MIGRATION GROUP</h1>
+        </div>
         <h2>Salary Slip (${data.period.startDate} - ${data.period.endDate})</h2>
 
         <div class="header-info">
           <div class="info-item">
-            <div><span class="info-label">${data.employee.name}</span></div>
+            <div style="font-size: 14px; font-weight: 700;">${data.employee.name}</div>
+            ${data.employee.aadhaarNumber ? `<div style="font-size: 11px;">Aadhaar: ${data.employee.aadhaarNumber}</div>` : ''}
           </div>
           <div class="info-item">
-            <div><span class="info-label">Phone No</span> ${data.employee.phone}</div>
-          </div>
-          <div class="info-item">
-            <div><span class="info-label">Hourly Salary</span> ₹ ${data.employee.hourlyRate.toFixed(2)}</div>
+            <div style="font-size: 10px;"><span class="info-label">Phone</span> ${data.employee.phone}</div>
+            <div style="font-size: 10px;"><span class="info-label">Hourly Rate</span> ₹ ${data.employee.hourlyRate.toFixed(2)}</div>
           </div>
         </div>
 
         <h2>Payment & Salary</h2>
         <table>
+          <tbody>
+            <tr>
+              <td><strong>Total Amount</strong></td>
+              <td style="text-align: right;"><strong>₹ ${data.earnings.earnedSalary.toFixed(2)}</strong></td>
+            </tr>
+            <tr>
+              <td><strong>Hours Worked</strong></td>
+              <td style="text-align: right;">${data.earnings.totalHours.toFixed(2)} hrs</td>
+            </tr>
+            <tr>
+              <td><strong>Expected Working Hours</strong></td>
+              <td style="text-align: right;">${data.earnings.expectedHours.toFixed(2)} hrs</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h2>Misc Allowance</h2>
+        <table>
           <thead>
             <tr>
-              <th>Earnings</th>
-              <th>Activity Date</th>
+              <th>Description</th>
               <th style="text-align: right;">Amount</th>
             </tr>
           </thead>
           <tbody>
             <tr>
-              <td>Hourly Salary ₹ ${data.employee.hourlyRate.toFixed(2)} x ${data.earnings.totalHours.toFixed(2)} Hrs</td>
-              <td>--</td>
-              <td style="text-align: right;">₹ ${data.earnings.earnedSalary.toFixed(2)}</td>
+              <td colspan="2" style="text-align: center; color: #64748b; font-style: italic;">No allowances for this month</td>
             </tr>
+          </tbody>
+        </table>
+
+        <h2>Net Payable</h2>
+        <table>
+          <tbody>
             <tr class="total-row">
-              <td>Total Earnings</td>
-              <td></td>
-              <td style="text-align: right;">₹ ${data.earnings.earnedSalary.toFixed(2)}</td>
-            </tr>
-            <tr>
-              <td>Previous Month Closing Balance</td>
-              <td></td>
-              <td style="text-align: right;">₹ ${(data.previousBalance || 0).toFixed(2)}</td>
-            </tr>
-            <tr class="total-row">
-              <td><strong>Net Payable (Earnings + Previous Balance)</strong></td>
-              <td></td>
-              <td style="text-align: right;"><strong>₹ ${netPayable.toFixed(2)}</strong></td>
+              <td><strong>Total Payable (Salary + Allowances)</strong></td>
+              <td style="text-align: right;"><strong>₹ ${data.earnings.earnedSalary.toFixed(2)}</strong></td>
             </tr>
           </tbody>
         </table>

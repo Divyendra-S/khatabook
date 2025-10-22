@@ -14,6 +14,7 @@ export interface AttendanceReportData {
     employeeId: string;
     phone: string;
     hourlyRate: number;
+    aadhaarNumber?: string;
   };
   period: {
     month: number;
@@ -24,6 +25,7 @@ export interface AttendanceReportData {
   };
   earnings: {
     totalHours: number;
+    expectedHours: number;
     earnedSalary: number;
   };
   attendance: {
@@ -50,7 +52,7 @@ export async function fetchAttendanceReportData(
   // Fetch user data
   const { data: user, error: userError } = await supabase
     .from('users')
-    .select('employee_id, full_name, phone, hourly_rate, working_days')
+    .select('employee_id, full_name, phone, hourly_rate, working_days, aadhaar_number')
     .eq('id', userId)
     .single();
 
@@ -65,7 +67,11 @@ export async function fetchAttendanceReportData(
     .eq('year', year)
     .single();
 
-  if (earningsError) throw earningsError;
+  // If no earnings record exists, throw a user-friendly error
+  if (earningsError && earningsError.code !== 'PGRST116') throw earningsError;
+  if (!earnings) {
+    throw new Error('No attendance data found for this month. Please ensure the month has ended and earnings have been calculated.');
+  }
 
   // Calculate date range
   const startDate = new Date(year, month - 1, 1);
@@ -142,6 +148,7 @@ export async function fetchAttendanceReportData(
       employeeId: user.employee_id,
       phone: user.phone || 'N/A',
       hourlyRate: Number(user.hourly_rate) || 0,
+      aadhaarNumber: user.aadhaar_number || undefined,
     },
     period: {
       month,
@@ -160,6 +167,7 @@ export async function fetchAttendanceReportData(
     },
     earnings: {
       totalHours: Number(earnings.total_hours_worked) || 0,
+      expectedHours: Number(earnings.expected_hours) || 0,
       earnedSalary: Number(earnings.earned_salary) || 0,
     },
     attendance: {
@@ -240,16 +248,18 @@ function generateAttendanceReportHTML(data: AttendanceReportData): string {
 
     const dateNum = new Date(day.date).getDate();
     const monthStr = new Date(day.date).toLocaleDateString('en-US', { month: 'short' });
+    const isSunday = dayOfWeek === 0;
+    const sundayStyle = isSunday ? 'color: #EF4444;' : '';
 
     let cellContent = '';
     if (day.status === 'P' && day.hours) {
       const hours = Math.floor(day.hours);
       const minutes = Math.round((day.hours - hours) * 60);
-      cellContent = `<strong>${dateNum} ${monthStr}</strong><br/>P [${hours}:${String(minutes).padStart(2, '0')}] Hrs`;
+      cellContent = `<strong style="${sundayStyle}">${dateNum} ${monthStr}</strong><br/><span style="font-size: 9px; ${sundayStyle}">${hours}:${String(minutes).padStart(2, '0')}</span>`;
     } else if (day.status === 'A') {
-      cellContent = `<strong>${dateNum} ${monthStr}</strong><br/>Absent`;
+      cellContent = `<strong style="${sundayStyle}">${dateNum} ${monthStr}</strong><br/><span style="font-size: 9px; ${sundayStyle}">Ab.</span>`;
     } else if (day.status === 'WO') {
-      cellContent = `<strong>${dateNum} ${monthStr}</strong><br/>Week Off`;
+      cellContent = `<strong style="${sundayStyle}">${dateNum} ${monthStr}</strong><br/><span style="font-size: 9px; ${sundayStyle}">Week Off</span>`;
     }
 
     currentWeek.push(`
@@ -390,12 +400,12 @@ function generateAttendanceReportHTML(data: AttendanceReportData): string {
 
           <div class="header-info">
             <div class="info-item">
-              <div><span class="info-label">${data.employee.name}</span></div>
-              <div><span class="info-label">Employee ID:</span> ${data.employee.employeeId}</div>
+              <div style="font-size: 16px; font-weight: 700; margin-bottom: 8px;">${data.employee.name}</div>
+              ${data.employee.aadhaarNumber ? `<div style="font-size: 14px;"><span class="info-label">Aadhaar:</span> ${data.employee.aadhaarNumber}</div>` : ''}
             </div>
             <div class="info-item">
-              <div><span class="info-label">Phone:</span> ${data.employee.phone}</div>
-              <div><span class="info-label">Hourly Rate:</span> ₹${data.employee.hourlyRate.toFixed(2)}</div>
+              <div style="font-size: 11px;"><span class="info-label">Phone:</span> ${data.employee.phone}</div>
+              <div style="font-size: 11px;"><span class="info-label">Hourly Rate:</span> ₹${data.employee.hourlyRate.toFixed(2)}</div>
             </div>
           </div>
 
@@ -403,16 +413,16 @@ function generateAttendanceReportHTML(data: AttendanceReportData): string {
           <table>
             <tbody>
               <tr>
-                <td><strong>Hourly Rate</strong></td>
-                <td style="text-align: right;">₹${data.employee.hourlyRate.toFixed(2)}</td>
+                <td><strong>Total Amount</strong></td>
+                <td style="text-align: right;"><strong>₹${data.earnings.earnedSalary.toFixed(2)}</strong></td>
               </tr>
               <tr>
                 <td><strong>Hours Worked</strong></td>
                 <td style="text-align: right;">${data.earnings.totalHours.toFixed(2)} hrs</td>
               </tr>
-              <tr style="background-color: #f8fafc;">
-                <td><strong>Earned Salary</strong></td>
-                <td style="text-align: right;"><strong>₹${data.earnings.earnedSalary.toFixed(2)}</strong></td>
+              <tr>
+                <td><strong>Expected Working Hours</strong></td>
+                <td style="text-align: right;">${data.earnings.expectedHours.toFixed(2)} hrs</td>
               </tr>
             </tbody>
           </table>

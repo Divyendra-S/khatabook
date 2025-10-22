@@ -156,12 +156,19 @@ function generateBulkSalarySheetHTML(
           display: inline-block;
           text-align: center;
         }
+        .logo-container {
+          display: inline-block;
+          background-color: white;
+          padding: 10px;
+          border-radius: 8px;
+          margin-right: 15px;
+          vertical-align: middle;
+        }
         .logo {
           display: inline-block;
-          width: 160px;
-          height: 160px;
+          width: 140px;
+          height: 140px;
           vertical-align: middle;
-          margin-right: 15px;
         }
         .logo img {
           width: 100%;
@@ -172,9 +179,9 @@ function generateBulkSalarySheetHTML(
           display: inline-block;
           vertical-align: middle;
           color: white;
-          font-size: 42pt;
+          font-size: 32pt;
           font-weight: bold;
-          letter-spacing: 2px;
+          letter-spacing: 1px;
           line-height: 1.2;
           text-align: center;
         }
@@ -231,8 +238,10 @@ function generateBulkSalarySheetHTML(
       <!-- Header Strip -->
       <div class="header-strip">
         <div class="header-content">
-          <div class="logo"><img src="${logoUrl}" alt="SAS Logo" /></div>
-          <div class="company-name">SAS MIGRATION<br/>GROUP</div>
+          <div class="logo-container">
+            <div class="logo"><img src="${logoUrl}" alt="SAS Logo" /></div>
+          </div>
+          <div class="company-name">SAS MIGRATION GROUP</div>
         </div>
       </div>
 
