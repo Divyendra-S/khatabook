@@ -153,6 +153,13 @@ export default function HRLayout() {
           headerShown: false,
         }}
       />
+      <Tabs.Screen
+        name="wifi-networks"
+        options={{
+          href: null,
+          title: 'WiFi Networks',
+        }}
+      />
     </Tabs>
   );
 }
