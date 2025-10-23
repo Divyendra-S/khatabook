@@ -1,20 +1,20 @@
-import { Tables } from '../supabase/types';
+import { Tables } from "../supabase/types";
 
 // Database table types
-export type User = Tables<'users'>;
-export type AttendanceRecord = Tables<'attendance_records'>;
-export type SalaryRecord = Tables<'salary_records'> & {
+export type User = Tables<"users">;
+export type AttendanceRecord = Tables<"attendance_records">;
+export type SalaryRecord = Tables<"salary_records"> & {
   // Computed fields added by query functions for UI compatibility
   month_year?: string;
   days_worked?: number;
   paid_date?: string | null;
 };
-export type LeaveRequest = Tables<'leave_requests'>;
-export type Notification = Tables<'notifications'>;
-export type Organization = Tables<'organizations'>;
-export type EmployeeMonthlyEarnings = Tables<'employee_monthly_earnings'>;
-export type BreakRequest = Tables<'break_requests'>;
-export type SalaryHistory = Tables<'salary_history'>;
+export type LeaveRequest = Tables<"leave_requests">;
+export type Notification = Tables<"notifications">;
+export type Organization = Tables<"organizations">;
+export type EmployeeMonthlyEarnings = Tables<"employee_monthly_earnings">;
+export type BreakRequest = Tables<"break_requests">;
+export type SalaryHistory = Tables<"salary_history">;
 
 // Break-related types
 export interface AttendanceBreak {
@@ -25,13 +25,31 @@ export interface AttendanceBreak {
 }
 
 // Enums
-export type UserRole = 'employee' | 'hr' | 'admin';
-export type LeaveType = 'sick' | 'casual' | 'earned' | 'unpaid' | 'maternity' | 'paternity';
-export type LeaveStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
-export type SalaryStatus = 'draft' | 'pending' | 'approved' | 'paid';
-export type PaymentMethod = 'bank_transfer' | 'cash' | 'cheque' | 'upi';
-export type NotificationType = 'attendance' | 'salary' | 'leave' | 'announcement' | 'system';
-export type WeekDay = 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
+export type UserRole = "employee" | "hr" | "admin";
+export type LeaveType =
+  | "sick"
+  | "casual"
+  | "earned"
+  | "unpaid"
+  | "maternity"
+  | "paternity";
+export type LeaveStatus = "pending" | "approved" | "rejected" | "cancelled";
+export type SalaryStatus = "draft" | "pending" | "approved" | "paid";
+export type PaymentMethod = "bank_transfer" | "cash" | "cheque" | "upi";
+export type NotificationType =
+  | "attendance"
+  | "salary"
+  | "leave"
+  | "announcement"
+  | "system";
+export type WeekDay =
+  | "monday"
+  | "tuesday"
+  | "wednesday"
+  | "thursday"
+  | "friday"
+  | "saturday"
+  | "sunday";
 
 // Extended types with relations
 export type UserWithOrganization = User & {
@@ -43,26 +61,29 @@ export type UserWithEarnings = User & {
 };
 
 export type AttendanceWithUser = AttendanceRecord & {
-  user?: Pick<User, 'full_name' | 'employee_id'>;
+  user?: Pick<User, "full_name" | "employee_id">;
   break_requests?: BreakRequest[];
 };
 
 export type SalaryWithUser = SalaryRecord & {
-  user?: Pick<User, 'full_name' | 'employee_id'>;
+  user?: Pick<User, "full_name" | "employee_id">;
 };
 
 export type LeaveRequestWithUser = LeaveRequest & {
-  user?: Pick<User, 'full_name' | 'employee_id'>;
-  reviewer?: Pick<User, 'full_name'>;
+  user?: Pick<User, "full_name" | "employee_id">;
+  reviewer?: Pick<User, "full_name">;
 };
 
 export type EarningsWithUser = EmployeeMonthlyEarnings & {
-  user?: Pick<User, 'full_name' | 'employee_id' | 'base_salary' | 'hourly_rate'>;
+  user?: Pick<
+    User,
+    "full_name" | "employee_id" | "base_salary" | "hourly_rate"
+  >;
 };
 
 export type SalaryHistoryWithUser = SalaryHistory & {
-  user?: Pick<User, 'full_name' | 'employee_id'>;
-  changedBy?: Pick<User, 'full_name'>;
+  user?: Pick<User, "full_name" | "employee_id">;
+  changedBy?: Pick<User, "full_name">;
 };
 
 // Monthly attendance summary
@@ -107,10 +128,14 @@ export interface SignupForm {
 
 export interface CheckInForm {
   notes?: string;
+  wifiSsid?: string;
+  wifiVerified?: boolean;
 }
 
 export interface CheckOutForm {
   notes?: string;
+  wifiSsid?: string;
+  wifiVerified?: boolean;
 }
 
 export interface LeaveRequestForm {
@@ -172,4 +197,24 @@ export interface OrganizationStats {
   presentToday: number;
   absentToday: number;
   pendingLeaveRequests: number;
+}
+
+// WiFi Verification types
+export type OfficeWiFiNetwork = {
+  id: string;
+  organization_id: string;
+  ssid: string;
+  description?: string;
+  is_active: boolean;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export interface WiFiVerificationStatus {
+  isConnected: boolean;
+  ssid: string | null;
+  isOfficeWiFi: boolean;
+  permissionGranted: boolean;
+  error?: string;
 }

@@ -1,50 +1,59 @@
-import { useMutation, useQueryClient, UseMutationOptions } from '@tanstack/react-query';
-import { attendanceMutations } from '@/lib/api/mutations/attendance.mutations';
-import { attendanceKeys } from '@/hooks/queries/useAttendance';
-import { AttendanceRecord, AttendanceBreak } from '@/lib/types';
+import { attendanceKeys } from "@/hooks/queries/useAttendance";
+import { attendanceMutations } from "@/lib/api/mutations/attendance.mutations";
+import { AttendanceBreak, AttendanceRecord } from "@/lib/types";
+import {
+  useMutation,
+  UseMutationOptions,
+  useQueryClient,
+} from "@tanstack/react-query";
 
 /**
  * Hook for checking in
  */
 export const useCheckIn = (
   userId: string,
-  options?: UseMutationOptions<AttendanceRecord, Error, { notes?: string }>
+  options?: UseMutationOptions<
+    AttendanceRecord,
+    Error,
+    { notes?: string; wifiInfo?: { ssid: string | null; verified: boolean } }
+  >
 ) => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ notes }) => attendanceMutations.checkIn(userId, notes),
+    mutationFn: ({ notes, wifiInfo }) =>
+      attendanceMutations.checkIn(userId, notes, wifiInfo),
     onSuccess: async (data, variables, context) => {
       // Invalidate and refetch ALL attendance and earnings queries
       await queryClient.invalidateQueries({
-        queryKey: ['attendance'],
-        refetchType: 'all'
+        queryKey: ["attendance"],
+        refetchType: "all",
       });
 
       await queryClient.invalidateQueries({
-        queryKey: ['salary'],
-        refetchType: 'all'
+        queryKey: ["salary"],
+        refetchType: "all",
       });
 
       await queryClient.invalidateQueries({
-        queryKey: ['earnings'],
-        refetchType: 'all'
+        queryKey: ["earnings"],
+        refetchType: "all",
       });
 
       // Force refetch all active queries
       await queryClient.refetchQueries({
-        queryKey: ['attendance'],
-        type: 'active'
+        queryKey: ["attendance"],
+        type: "active",
       });
 
       await queryClient.refetchQueries({
-        queryKey: ['salary'],
-        type: 'active'
+        queryKey: ["salary"],
+        type: "active",
       });
 
       await queryClient.refetchQueries({
-        queryKey: ['earnings'],
-        type: 'active'
+        queryKey: ["earnings"],
+        type: "active",
       });
 
       // Call user's onSuccess if provided
@@ -61,43 +70,53 @@ export const useCheckIn = (
  */
 export const useCheckOut = (
   userId: string,
-  options?: UseMutationOptions<AttendanceRecord, Error, { recordId: string; notes?: string; breaks?: AttendanceBreak[] }>
+  options?: UseMutationOptions<
+    AttendanceRecord,
+    Error,
+    {
+      recordId: string;
+      notes?: string;
+      breaks?: AttendanceBreak[];
+      wifiInfo?: { ssid: string | null; verified: boolean };
+    }
+  >
 ) => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ recordId, notes, breaks }) => attendanceMutations.checkOut(recordId, notes, breaks),
+    mutationFn: ({ recordId, notes, breaks, wifiInfo }) =>
+      attendanceMutations.checkOut(recordId, notes, breaks, wifiInfo),
     onSuccess: async (data, variables, context) => {
       // Invalidate and refetch ALL attendance and earnings queries
       await queryClient.invalidateQueries({
-        queryKey: ['attendance'],
-        refetchType: 'all'
+        queryKey: ["attendance"],
+        refetchType: "all",
       });
 
       await queryClient.invalidateQueries({
-        queryKey: ['salary'],
-        refetchType: 'all'
+        queryKey: ["salary"],
+        refetchType: "all",
       });
 
       await queryClient.invalidateQueries({
-        queryKey: ['earnings'],
-        refetchType: 'all'
+        queryKey: ["earnings"],
+        refetchType: "all",
       });
 
       // Force refetch all active queries
       await queryClient.refetchQueries({
-        queryKey: ['attendance'],
-        type: 'active'
+        queryKey: ["attendance"],
+        type: "active",
       });
 
       await queryClient.refetchQueries({
-        queryKey: ['salary'],
-        type: 'active'
+        queryKey: ["salary"],
+        type: "active",
       });
 
       await queryClient.refetchQueries({
-        queryKey: ['earnings'],
-        type: 'active'
+        queryKey: ["earnings"],
+        type: "active",
       });
 
       // Call user's onSuccess if provided
@@ -124,44 +143,47 @@ export const useMarkAttendance = (
       checkOutTime?: string;
       notes?: string;
       breaks?: AttendanceBreak[];
+      bypassWiFi?: boolean;
+      bypassReason?: string;
     }
   >
 ) => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (params) => attendanceMutations.markAttendance({ ...params, markedBy }),
+    mutationFn: (params) =>
+      attendanceMutations.markAttendance({ ...params, markedBy }),
     onSuccess: async (data, variables, context) => {
       // Invalidate and refetch ALL attendance and earnings queries
       await queryClient.invalidateQueries({
-        queryKey: ['attendance'],
-        refetchType: 'all'
+        queryKey: ["attendance"],
+        refetchType: "all",
       });
 
       await queryClient.invalidateQueries({
-        queryKey: ['salary'],
-        refetchType: 'all'
+        queryKey: ["salary"],
+        refetchType: "all",
       });
 
       await queryClient.invalidateQueries({
-        queryKey: ['earnings'],
-        refetchType: 'all'
+        queryKey: ["earnings"],
+        refetchType: "all",
       });
 
       // Force refetch all active queries
       await queryClient.refetchQueries({
-        queryKey: ['attendance'],
-        type: 'active'
+        queryKey: ["attendance"],
+        type: "active",
       });
 
       await queryClient.refetchQueries({
-        queryKey: ['salary'],
-        type: 'active'
+        queryKey: ["salary"],
+        type: "active",
       });
 
       await queryClient.refetchQueries({
-        queryKey: ['earnings'],
-        type: 'active'
+        queryKey: ["earnings"],
+        type: "active",
       });
 
       // Call user's onSuccess if provided
@@ -196,38 +218,39 @@ export const useUpdateAttendance = (
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ recordId, updates }) => attendanceMutations.updateAttendance(recordId, updates),
+    mutationFn: ({ recordId, updates }) =>
+      attendanceMutations.updateAttendance(recordId, updates),
     onSuccess: async (data, variables, context) => {
       // Invalidate and refetch ALL attendance and earnings queries
       await queryClient.invalidateQueries({
-        queryKey: ['attendance'],
-        refetchType: 'all'
+        queryKey: ["attendance"],
+        refetchType: "all",
       });
 
       await queryClient.invalidateQueries({
-        queryKey: ['salary'],
-        refetchType: 'all'
+        queryKey: ["salary"],
+        refetchType: "all",
       });
 
       await queryClient.invalidateQueries({
-        queryKey: ['earnings'],
-        refetchType: 'all'
+        queryKey: ["earnings"],
+        refetchType: "all",
       });
 
       // Force refetch all active queries
       await queryClient.refetchQueries({
-        queryKey: ['attendance'],
-        type: 'active'
+        queryKey: ["attendance"],
+        type: "active",
       });
 
       await queryClient.refetchQueries({
-        queryKey: ['salary'],
-        type: 'active'
+        queryKey: ["salary"],
+        type: "active",
       });
 
       await queryClient.refetchQueries({
-        queryKey: ['earnings'],
-        type: 'active'
+        queryKey: ["earnings"],
+        type: "active",
       });
 
       // Call user's onSuccess if provided
@@ -248,7 +271,8 @@ export const useDeleteAttendance = (
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ recordId }) => attendanceMutations.deleteAttendance(recordId),
+    mutationFn: ({ recordId }) =>
+      attendanceMutations.deleteAttendance(recordId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: attendanceKeys.all });
     },
@@ -274,38 +298,39 @@ export const useUpdateBreaks = (
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ recordId, breaks }) => attendanceMutations.updateBreaks(recordId, breaks),
+    mutationFn: ({ recordId, breaks }) =>
+      attendanceMutations.updateBreaks(recordId, breaks),
     onSuccess: async (data, variables, context) => {
       // Invalidate and refetch ALL attendance and earnings queries
       await queryClient.invalidateQueries({
-        queryKey: ['attendance'],
-        refetchType: 'all'
+        queryKey: ["attendance"],
+        refetchType: "all",
       });
 
       await queryClient.invalidateQueries({
-        queryKey: ['salary'],
-        refetchType: 'all'
+        queryKey: ["salary"],
+        refetchType: "all",
       });
 
       await queryClient.invalidateQueries({
-        queryKey: ['earnings'],
-        refetchType: 'all'
+        queryKey: ["earnings"],
+        refetchType: "all",
       });
 
       // Force refetch all active queries
       await queryClient.refetchQueries({
-        queryKey: ['attendance'],
-        type: 'active'
+        queryKey: ["attendance"],
+        type: "active",
       });
 
       await queryClient.refetchQueries({
-        queryKey: ['salary'],
-        type: 'active'
+        queryKey: ["salary"],
+        type: "active",
       });
 
       await queryClient.refetchQueries({
-        queryKey: ['earnings'],
-        type: 'active'
+        queryKey: ["earnings"],
+        type: "active",
       });
 
       // Call user's onSuccess if provided
