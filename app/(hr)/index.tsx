@@ -1,6 +1,16 @@
 import { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator, StatusBar, TouchableOpacity, RefreshControl } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  ActivityIndicator,
+  StatusBar,
+  TouchableOpacity,
+  RefreshControl,
+} from 'react-native';
 import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '@/hooks/auth/useAuth';
 import { useHRAllEmployeesAttendance } from '@/hooks/queries/useAttendance';
 import { useHRPendingLeaveRequests } from '@/hooks/queries/useLeave';
@@ -8,6 +18,7 @@ import { usePendingBreakRequests } from '@/hooks/queries/useBreakRequests';
 import { useAllUsers } from '@/hooks/queries/useUser';
 import { formatDate, formatDateToISO } from '@/lib/utils/date.utils';
 import { useRouter } from 'expo-router';
+import { Colors, Typography, Spacing, BorderRadius, Shadows } from '@/constants/theme';
 
 export default function HRDashboard() {
   const router = useRouter();
@@ -15,9 +26,21 @@ export default function HRDashboard() {
   const [refreshing, setRefreshing] = useState(false);
   const today = formatDateToISO(new Date());
 
-  const { data: todayAttendance, isLoading: loadingAttendance, refetch: refetchAttendance } = useHRAllEmployeesAttendance({ date: today });
-  const { data: pendingLeaves, isLoading: loadingLeaves, refetch: refetchLeaves } = useHRPendingLeaveRequests();
-  const { data: pendingBreakRequests, isLoading: loadingBreakRequests, refetch: refetchBreakRequests } = usePendingBreakRequests();
+  const {
+    data: todayAttendance,
+    isLoading: loadingAttendance,
+    refetch: refetchAttendance,
+  } = useHRAllEmployeesAttendance({ date: today });
+  const {
+    data: pendingLeaves,
+    isLoading: loadingLeaves,
+    refetch: refetchLeaves,
+  } = useHRPendingLeaveRequests();
+  const {
+    data: pendingBreakRequests,
+    isLoading: loadingBreakRequests,
+    refetch: refetchBreakRequests,
+  } = usePendingBreakRequests();
   const { data: allUsers, isLoading: loadingUsers, refetch: refetchUsers } = useAllUsers();
 
   const onRefresh = async () => {
@@ -35,26 +58,90 @@ export default function HRDashboard() {
   };
 
   const activeEmployees = allUsers?.filter(u => u.is_active && u.role === 'employee').length || 0;
+  const totalEmployees = allUsers?.length || 0;
+  const leadershipCount = allUsers?.filter(u => u.role === 'hr' || u.role === 'admin').length || 0;
+  const inactiveCount = allUsers?.filter(u => !u.is_active).length || 0;
   const checkedInToday = todayAttendance?.filter(a => a.check_in_time !== null).length || 0;
+  const pendingLeavesCount = pendingLeaves?.length || 0;
+  const pendingBreakCount = pendingBreakRequests?.length || 0;
+  const totalPendingApprovals = pendingLeavesCount + pendingBreakCount;
+  const yetToCheckIn = Math.max(activeEmployees - checkedInToday, 0);
+
+  const metricCards = [
+    {
+      key: 'active-employees',
+      title: 'Active employees',
+      value: loadingUsers ? '—' : activeEmployees,
+      caption: loadingUsers ? 'Syncing roster…' : `${totalEmployees} active staff`,
+      icon: 'account-group-outline' as const,
+      accent: Colors.primary,
+    },
+    {
+      key: 'yet-to-check-in',
+      title: 'Yet to check in',
+      value: loadingAttendance ? '—' : yetToCheckIn,
+      caption:
+        loadingAttendance || loadingUsers
+          ? 'Refreshing attendance…'
+          : `${checkedInToday} already present`,
+      icon: 'clock-check-outline' as const,
+      accent: Colors.warning,
+    },
+    {
+      key: 'pending-leave',
+      title: 'Leave requests',
+      value: loadingLeaves ? '—' : pendingLeavesCount,
+      caption: loadingLeaves ? 'Reviewing queue…' : 'Awaiting HR decision',
+      icon: 'calendar-alert' as const,
+      accent: Colors.secondary,
+    },
+    {
+      key: 'pending-break',
+      title: 'Break requests',
+      value: loadingBreakRequests ? '—' : pendingBreakCount,
+      caption: loadingBreakRequests ? 'Checking updates…' : 'For short time off',
+      icon: 'coffee-outline' as const,
+      accent: Colors.info,
+    },
+  ];
+
+  type HRQuickRoute = '/(hr)/attendance' | '/(hr)/employees' | '/(hr)/leave';
+
+  const quickActions = [
+    {
+      key: 'attendance',
+      label: 'Attendance board',
+      description: 'Monitor daily presence',
+      icon: 'time-outline' as const,
+      route: '/(hr)/attendance',
+    },
+    {
+      key: 'employees',
+      label: 'Manage employees',
+      description: 'View and edit profiles',
+      icon: 'people-outline' as const,
+      route: '/(hr)/employees',
+    },
+    {
+      key: 'approvals',
+      label: 'Handle approvals',
+      description: 'Leave and break queue',
+      icon: 'clipboard-outline' as const,
+      route: '/(hr)/leave',
+    },
+  ] satisfies ReadonlyArray<{
+    key: 'attendance' | 'employees' | 'approvals';
+    label: string;
+    description: string;
+    icon: keyof typeof Ionicons.glyphMap;
+    route: HRQuickRoute;
+  }>;
+
+  const attendancePercentage = activeEmployees > 0 ? Math.round((checkedInToday / activeEmployees) * 100) : 0;
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#6366F1" />
-
-      {/* Fixed Header */}
-      <View style={styles.header}>
-        <View style={styles.headerTop}>
-          <View style={styles.headerLeft}>
-            <Text style={styles.greeting}>Hello, {user?.full_name?.split(' ')[0]}</Text>
-            <Text style={styles.date}>{formatDate(new Date())}</Text>
-          </View>
-          <TouchableOpacity style={styles.avatar} onPress={() => router.push('/profile')}>
-            <Text style={styles.avatarText}>
-              {user?.full_name?.charAt(0).toUpperCase()}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </View>
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
 
       <ScrollView
         style={styles.scrollView}
@@ -64,230 +151,275 @@ export default function HRDashboard() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            colors={['#6366F1']}
-            tintColor="#6366F1"
+            colors={[Colors.primary]}
+            tintColor={Colors.primaryLight}
           />
         }
       >
-        {/* Content Cards */}
-        <View style={styles.content}>
-          {/* Overview Stats */}
-          <View style={styles.statsRow}>
-            <TouchableOpacity
-              style={styles.statCard}
-              onPress={() => router.push('/(hr)/employees')}
-              activeOpacity={0.7}
-            >
-              {loadingUsers ? (
-                <ActivityIndicator size="small" color="#6366F1" />
-              ) : (
-                <>
-                  <View style={styles.statIconBgGreen}>
-                    <MaterialCommunityIcons name="account-group" size={24} color="#10B981" />
-                  </View>
-                  <Text style={styles.statValue}>{activeEmployees}</Text>
-                  <Text style={styles.statLabel}>Active Employees</Text>
-                </>
-              )}
-            </TouchableOpacity>
+        <LinearGradient
+          colors={[Colors.primaryDark, Colors.primary]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.heroSection}
+        >
+          <View style={styles.heroHeaderRow}>
+            <View style={styles.heroTextBlock}>
+              <Text style={styles.heroGreeting}>Hello, {user?.full_name?.split(' ')[0]}</Text>
+              <View style={styles.heroDatePill}>
+                <Feather name="calendar" size={16} color={Colors.textInverse} />
+                <Text style={styles.heroDateText}>{formatDate(new Date())}</Text>
+              </View>
+            </View>
 
+            <TouchableOpacity style={styles.avatarButton} onPress={() => router.push('/profile')}>
+              <Text style={styles.avatarLetter}>{user?.full_name?.charAt(0).toUpperCase()}</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.heroMetricsRow}>
             <TouchableOpacity
-              style={styles.statCard}
+              style={[styles.heroMetricCard, styles.heroMetricPrimary]}
+              activeOpacity={0.85}
               onPress={() => router.push('/(hr)/attendance')}
-              activeOpacity={0.7}
             >
-              {loadingAttendance ? (
-                <ActivityIndicator size="small" color="#6366F1" />
-              ) : (
-                <>
-                  <View style={styles.statIconBgBlue}>
-                    <MaterialCommunityIcons name="calendar-check" size={24} color="#3B82F6" />
-                  </View>
-                  <Text style={styles.statValue}>{checkedInToday}</Text>
-                  <Text style={styles.statLabel}>Present Today</Text>
-                </>
-              )}
+              <View style={[styles.heroMetricIcon, styles.heroMetricIconOverlay]}>
+                <MaterialCommunityIcons name="account-check-outline" size={20} color={Colors.textInverse} />
+              </View>
+              <View style={styles.heroMetricContent}>
+                <Text style={styles.heroMetricLabel}>checked in</Text>
+                <Text style={styles.heroMetricValue}>
+                  {loadingAttendance ? '—' : checkedInToday}
+                </Text>
+                <Text style={styles.heroMetricMeta}>
+                  {loadingUsers
+                    ? 'Syncing roster…'
+                    : 'View board'}
+                </Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.heroMetricCard, styles.heroMetricSecondary]}
+              activeOpacity={0.85}
+              onPress={() => router.push('/(hr)/leave')}
+            >
+              <View style={[styles.heroMetricIcon, styles.heroMetricIconOverlay]}>
+                <MaterialCommunityIcons name="clipboard-clock-outline" size={20} color={Colors.textInverse} />
+              </View>
+              <View style={styles.heroMetricContent}>
+                <Text style={styles.heroMetricLabel}>pending approvals</Text>
+                <Text style={styles.heroMetricValue}>
+                  {loadingLeaves || loadingBreakRequests ? '—' : totalPendingApprovals}
+                </Text>
+                <Text style={styles.heroMetricMeta}>
+                  {loadingLeaves || loadingBreakRequests
+                    ? 'Collecting requests…'
+                    : `L:${pendingLeavesCount} • B:${pendingBreakCount}`}
+                </Text>
+              </View>
             </TouchableOpacity>
           </View>
+        </LinearGradient>
 
-          {/* Pending Actions */}
-          <View style={styles.card}>
-            <View style={styles.cardHeader}>
-              <View style={styles.cardHeaderLeft}>
-                <View style={styles.iconContainer}>
-                  <MaterialCommunityIcons name="bell-alert" size={24} color="#6366F1" />
+        <View style={styles.sectionBlock}>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionTitle}>Key metrics</Text>
+            <Text style={styles.sectionSubtitle}>Compact view of today’s highlights</Text>
+          </View>
+          <View style={styles.metricsGrid}>
+            {metricCards.map(card => (
+              <TouchableOpacity
+                key={card.key}
+                style={styles.metricCard}
+                activeOpacity={0.85}
+                onPress={() => {
+                  if (card.key === 'pending-leave') router.push('/(hr)/leave');
+                  if (card.key === 'pending-break') router.push('/(hr)/break-requests');
+                  if (card.key === 'active-employees') router.push('/(hr)/employees');
+                  if (card.key === 'yet-to-check-in') router.push('/(hr)/attendance');
+                }}
+              >
+                <View style={[styles.metricIconBadge, { backgroundColor: card.accent + '14' }]}>
+                  <MaterialCommunityIcons name={card.icon} size={20} color={card.accent} />
                 </View>
-                <Text style={styles.cardTitle}>Pending Actions</Text>
-              </View>
-            </View>
+                <Text style={styles.metricTitle}>{card.title}</Text>
+                <Text style={styles.metricValue}>{card.value}</Text>
+                <Text style={styles.metricCaption}>{card.caption}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
 
-            {(loadingLeaves || loadingBreakRequests) ? (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator size="small" color="#6366F1" />
-              </View>
-            ) : (
-              <View style={styles.pendingList}>
-                <TouchableOpacity
-                  style={styles.pendingItem}
-                  onPress={() => router.push('/(hr)/leave')}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.pendingIconWrapper}>
-                    <View style={styles.pendingIconBg}>
-                      <MaterialCommunityIcons name="beach" size={24} color="#F59E0B" />
-                    </View>
-                  </View>
-                  <View style={styles.pendingContent}>
-                    <Text style={styles.pendingText}>Leave Requests</Text>
-                    <Text style={styles.pendingSubtext}>Pending approval</Text>
-                  </View>
-                  <View style={styles.pendingBadge}>
-                    <Text style={styles.pendingCount}>{pendingLeaves?.length || 0}</Text>
-                  </View>
-                </TouchableOpacity>
+        <View style={styles.sectionBlock}>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionTitle}>Quick actions</Text>
+            <Text style={styles.sectionSubtitle}>Jump straight into frequent tasks</Text>
+          </View>
+          <View style={styles.quickActionsGrid}>
+            {quickActions.map(action => (
+              <TouchableOpacity
+                key={action.key}
+                style={styles.quickActionCard}
+                activeOpacity={0.88}
+                onPress={() => router.push(action.route)}
+              >
+                <View style={styles.quickActionIcon}>
+                  <Ionicons name={action.icon} size={20} color={Colors.primaryDark} />
+                </View>
+                <View style={styles.quickActionContent}>
+                  <Text style={styles.quickActionLabel}>{action.label}</Text>
+                  <Text style={styles.quickActionDescription}>{action.description}</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={Colors.textSecondary} />
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
 
-                <View style={styles.divider} />
-
-                <TouchableOpacity
-                  style={styles.pendingItem}
-                  onPress={() => router.push('/(hr)/break-requests')}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.pendingIconWrapper}>
-                    <View style={styles.pendingIconBgBreak}>
-                      <MaterialCommunityIcons name="coffee" size={24} color="#8B5CF6" />
-                    </View>
-                  </View>
-                  <View style={styles.pendingContent}>
-                    <Text style={styles.pendingText}>Break Requests</Text>
-                    <Text style={styles.pendingSubtext}>
-                      {(pendingBreakRequests && pendingBreakRequests.length > 0)
-                        ? 'Pending approval'
-                        : 'No pending requests'}
-                    </Text>
-                  </View>
-                  {(pendingBreakRequests && pendingBreakRequests.length > 0) ? (
-                    <View style={styles.pendingBadge}>
-                      <Text style={styles.pendingCount}>{pendingBreakRequests.length}</Text>
-                    </View>
-                  ) : (
-                    <Ionicons name="chevron-forward" size={20} color="#94A3B8" />
-                  )}
-                </TouchableOpacity>
-              </View>
-            )}
+        <View style={styles.sectionCard}>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionTitle}>Pending actions</Text>
+            <Text style={styles.sectionSubtitle}>Quick snapshot of approvals</Text>
           </View>
 
-          {/* Today's Attendance Summary */}
-          <TouchableOpacity
-            style={styles.card}
-            onPress={() => router.push('/(hr)/attendance')}
-            activeOpacity={0.7}
-          >
-            <View style={styles.cardHeader}>
-              <View style={styles.cardHeaderLeft}>
-                <View style={styles.iconContainer}>
-                  <Ionicons name="time-outline" size={24} color="#6366F1" />
-                </View>
-                <Text style={styles.cardTitle}>Today's Attendance</Text>
-              </View>
+          {loadingLeaves || loadingBreakRequests ? (
+            <View style={styles.loadingState}>
+              <ActivityIndicator size="small" color={Colors.primary} />
+              <Text style={styles.loadingLabel}>Syncing approval queue…</Text>
             </View>
-
-            {loadingAttendance ? (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator size="small" color="#6366F1" />
-              </View>
-            ) : todayAttendance && todayAttendance.length > 0 ? (
-              <View>
-                <Text style={styles.attendanceSummary}>
-                  {checkedInToday} employees checked in today
-                </Text>
-                <View style={styles.progressBar}>
-                  <View
-                    style={[
-                      styles.progressFill,
-                      {
-                        width: `${activeEmployees > 0 ? (checkedInToday / activeEmployees) * 100 : 0}%`,
-                      },
-                    ]}
-                  />
+          ) : (
+            <View style={styles.pendingGrid}>
+              <TouchableOpacity
+                style={styles.pendingCard}
+                onPress={() => router.push('/(hr)/leave')}
+                activeOpacity={0.88}
+              >
+                <View style={[styles.pendingIcon, { backgroundColor: Colors.warning + '1A' }]}>
+                  <MaterialCommunityIcons name="beach" size={22} color={Colors.warningDark} />
                 </View>
-                <Text style={styles.progressText}>
-                  {activeEmployees > 0
-                    ? `${Math.round((checkedInToday / activeEmployees) * 100)}% attendance`
-                    : '0% attendance'}
-                </Text>
-              </View>
-            ) : (
-              <View style={styles.emptyStateContainer}>
-                <Feather name="calendar" size={40} color="#94A3B8" />
-                <Text style={styles.emptyStateText}>No attendance records for today</Text>
-              </View>
-            )}
-          </TouchableOpacity>
-
-          {/* Quick Stats */}
-          <TouchableOpacity
-            style={styles.card}
-            onPress={() => router.push('/(hr)/employees')}
-            activeOpacity={0.7}
-          >
-            <View style={styles.cardHeader}>
-              <View style={styles.cardHeaderLeft}>
-                <View style={styles.iconContainer}>
-                  <MaterialCommunityIcons name="chart-box-outline" size={24} color="#6366F1" />
+                <View style={styles.pendingContent}>
+                  <Text style={styles.pendingTitle}>Leave requests</Text>
+                  <Text style={styles.pendingSubtitle}>Awaiting review</Text>
                 </View>
-                <Text style={styles.cardTitle}>Quick Stats</Text>
-              </View>
-            </View>
-
-            <View style={styles.statsContainer}>
-              <View style={styles.statItemRow}>
-                <View style={styles.statIconWrapper}>
-                  <View style={styles.statIconBgPurple}>
-                    <MaterialCommunityIcons name="account-multiple" size={24} color="#8B5CF6" />
-                  </View>
+                <View style={[styles.pendingBadge, { backgroundColor: Colors.warning }]}>
+                  <Text style={styles.pendingCount}>{pendingLeavesCount}</Text>
                 </View>
-                <View style={styles.statContent}>
-                  <Text style={styles.statItemLabel}>Total Employees</Text>
-                  <Text style={styles.statItemValue}>{allUsers?.length || 0}</Text>
-                </View>
-              </View>
+              </TouchableOpacity>
 
-              <View style={styles.statDivider} />
-
-              <View style={styles.statItemRow}>
-                <View style={styles.statIconWrapper}>
-                  <View style={styles.statIconBgBlue}>
-                    <MaterialCommunityIcons name="shield-account" size={24} color="#3B82F6" />
-                  </View>
+              <TouchableOpacity
+                style={styles.pendingCard}
+                onPress={() => router.push('/(hr)/break-requests')}
+                activeOpacity={0.88}
+              >
+                <View style={[styles.pendingIcon, { backgroundColor: Colors.info + '1A' }]}>
+                  <MaterialCommunityIcons name="coffee" size={22} color={Colors.infoDark} />
                 </View>
-                <View style={styles.statContent}>
-                  <Text style={styles.statItemLabel}>HR Staff</Text>
-                  <Text style={styles.statItemValue}>
-                    {allUsers?.filter(u => u.role === 'hr' || u.role === 'admin').length || 0}
+                <View style={styles.pendingContent}>
+                  <Text style={styles.pendingTitle}>Break requests</Text>
+                  <Text style={styles.pendingSubtitle}>
+                    {pendingBreakCount > 0 ? 'Needs attention' : 'All clear'}
                   </Text>
                 </View>
-              </View>
-
-              <View style={styles.statDivider} />
-
-              <View style={styles.statItemRow}>
-                <View style={styles.statIconWrapper}>
-                  <View style={styles.statIconBgRed}>
-                    <MaterialCommunityIcons name="account-off" size={24} color="#EF4444" />
+                {pendingBreakCount > 0 ? (
+                  <View style={[styles.pendingBadge, { backgroundColor: Colors.info }]}>
+                    <Text style={styles.pendingCount}>{pendingBreakCount}</Text>
                   </View>
-                </View>
-                <View style={styles.statContent}>
-                  <Text style={styles.statItemLabel}>Inactive</Text>
-                  <Text style={styles.statItemValue}>
-                    {allUsers?.filter(u => !u.is_active).length || 0}
-                  </Text>
-                </View>
-              </View>
+                ) : (
+                  <Ionicons name="chevron-forward" size={18} color={Colors.textSecondary} />
+                )}
+              </TouchableOpacity>
             </View>
-          </TouchableOpacity>
+          )}
         </View>
+
+        <TouchableOpacity
+          style={styles.sectionCard}
+          onPress={() => router.push('/(hr)/attendance')}
+          activeOpacity={0.88}
+        >
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionTitle}>Attendance health</Text>
+            <Ionicons name="chevron-forward" size={18} color={Colors.textSecondary} />
+          </View>
+
+          {loadingAttendance ? (
+            <View style={styles.loadingState}>
+              <ActivityIndicator size="small" color={Colors.primary} />
+              <Text style={styles.loadingLabel}>Fetching today’s attendance…</Text>
+            </View>
+          ) : todayAttendance && todayAttendance.length > 0 ? (
+            <View style={styles.attendanceContent}>
+              <View style={styles.attendanceSummaryRow}>
+                <View style={styles.attendanceSummaryBadge}>
+                  <MaterialCommunityIcons name="account-clock-outline" size={20} color={Colors.primary} />
+                </View>
+                <View style={styles.attendanceSummaryCopy}>
+                  <Text style={styles.attendanceHeadline}>{checkedInToday} team members present</Text>
+                  <Text style={styles.attendanceSubheadline}>
+                    {yetToCheckIn > 0 ? `${yetToCheckIn} still due` : 'Everyone accounted for'}
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.attendanceProgressBar}>
+                <View
+                  style={[
+                    styles.attendanceProgressFill,
+                    { width: `${activeEmployees > 0 ? (checkedInToday / activeEmployees) * 100 : 0}%` },
+                  ]}
+                />
+              </View>
+              <View style={styles.attendanceFooter}>
+                <Text style={styles.attendancePercentage}>{`${attendancePercentage}% of active staff`}</Text>
+                <Text style={styles.attendanceMeta}>
+                  {activeEmployees > 0 ? `${checkedInToday}/${activeEmployees} checked in` : 'No active employees yet'}
+                </Text>
+              </View>
+            </View>
+          ) : (
+            <View style={styles.emptyState}>
+              <Feather name="calendar" size={36} color={Colors.gray300} />
+              <Text style={styles.emptyStateTitle}>No attendance yet</Text>
+              <Text style={styles.emptyStateSubtitle}>Records will appear as soon as check-ins begin.</Text>
+            </View>
+          )}
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.sectionCard}
+          onPress={() => router.push('/(hr)/employees')}
+          activeOpacity={0.88}
+        >
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionTitle}>Team insights</Text>
+            <Ionicons name="chevron-forward" size={18} color={Colors.textSecondary} />
+          </View>
+
+          <View style={styles.teamInsightGrid}>
+            <View style={styles.teamInsightCard}>
+              <View style={[styles.teamInsightIcon, { backgroundColor: Colors.secondary + '1A' }]}>
+                <MaterialCommunityIcons name="account-multiple" size={22} color={Colors.secondaryDark} />
+              </View>
+              <Text style={styles.teamInsightLabel}>Total workforce</Text>
+              <Text style={styles.teamInsightValue}>{totalEmployees}</Text>
+            </View>
+
+            <View style={styles.teamInsightCard}>
+              <View style={[styles.teamInsightIcon, { backgroundColor: Colors.info + '1A' }]}>
+                <MaterialCommunityIcons name="shield-account" size={22} color={Colors.infoDark} />
+              </View>
+              <Text style={styles.teamInsightLabel}>HR & admin</Text>
+              <Text style={styles.teamInsightValue}>{leadershipCount}</Text>
+            </View>
+
+            <View style={styles.teamInsightCard}>
+              <View style={[styles.teamInsightIcon, { backgroundColor: Colors.error + '1A' }]}>
+                <MaterialCommunityIcons name="account-off" size={22} color={Colors.errorDark} />
+              </View>
+              <Text style={styles.teamInsightLabel}>Inactive profiles</Text>
+              <Text style={styles.teamInsightValue}>{inactiveCount}</Text>
+            </View>
+          </View>
+        </TouchableOpacity>
       </ScrollView>
     </View>
   );
@@ -296,303 +428,390 @@ export default function HRDashboard() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#6366F1',
+    backgroundColor: Colors.backgroundSecondary,
   },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: 32,
-    backgroundColor: '#F8FAFC',
+    paddingBottom: Spacing['6xl'],
+    paddingHorizontal: Spacing['2xl'],
+    gap: Spacing['3xl'],
   },
-  header: {
-    paddingTop: 60,
-    paddingHorizontal: 20,
-    paddingBottom: 24,
-    backgroundColor: '#6366F1',
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
+  heroSection: {
+    marginHorizontal: -Spacing['2xl'],
+    paddingHorizontal: Spacing['2xl'],
+    paddingTop: Spacing['5xl'],
+    paddingBottom: Spacing['lg'],
+    borderBottomLeftRadius: BorderRadius['3xl'],
+    borderBottomRightRadius: BorderRadius['3xl'],
+    gap: Spacing['lg'],
   },
-  headerTop: {
+  heroHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
+    gap: Spacing['xl'],
   },
-  headerLeft: {
+  heroTextBlock: {
     flex: 1,
+    gap: Spacing['md'],
   },
-  greeting: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    marginBottom: 4,
+  heroGreeting: {
+    fontSize: Typography.fontSize['3xl'],
+    fontWeight: Typography.fontWeight.bold,
+    color: Colors.textInverse,
     letterSpacing: -0.5,
   },
-  date: {
-    fontSize: 14,
-    color: '#E0E7FF',
-    fontWeight: '500',
+  heroDatePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: Spacing['xs'],
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    paddingHorizontal: Spacing['md'],
+    paddingVertical: Spacing['xs'],
+    borderRadius: BorderRadius.full,
   },
-  avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#FFFFFF',
+  heroDateText: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: Typography.fontWeight.semibold,
+    color: Colors.textInverse,
+  },
+  avatarButton: {
+    width: 52,
+    height: 52,
+    borderRadius: BorderRadius['2xl'],
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.35)',
+    backgroundColor: 'rgba(255,255,255,0.12)',
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 4,
   },
-  avatarText: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#6366F1',
+  avatarLetter: {
+    fontSize: Typography.fontSize.lg,
+    fontWeight: Typography.fontWeight.bold,
+    color: Colors.textInverse,
   },
-  content: {
-    paddingHorizontal: 20,
-    paddingTop: 20,
-  },
-  statsRow: {
+  heroMetricsRow: {
     flexDirection: 'row',
-    gap: 12,
-    marginBottom: 16,
+    flexWrap: 'wrap',
+    gap: Spacing['md'],
+    marginTop: Spacing['sm'],
+    marginBottom: Spacing['sm'],
   },
-  statCard: {
+  heroMetricCard: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
-    padding: 20,
-    borderRadius: 20,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    elevation: 3,
-    gap: 12,
-  },
-  statIconBgGreen: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
-    backgroundColor: '#DCFCE7',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  statIconBgBlue: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
-    backgroundColor: '#DBEAFE',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  statIconBgPurple: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
-    backgroundColor: '#EDE9FE',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  statIconBgRed: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
-    backgroundColor: '#FEE2E2',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  statValue: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#0F172A',
-  },
-  statLabel: {
-    fontSize: 12,
-    color: '#64748B',
-    fontWeight: '500',
-    textAlign: 'center',
-  },
-  card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 20,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    elevation: 3,
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  cardHeaderLeft: {
+    minWidth: 160,
+    flexBasis: '48%',
+    borderRadius: BorderRadius['2xl'],
+    paddingVertical: Spacing['md'],
+    paddingHorizontal: 18,
+    gap: Spacing['sm'],
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
   },
-  iconContainer: {
+  heroMetricPrimary: {
+    backgroundColor: 'rgba(255,255,255,0.12)',
+  },
+  heroMetricSecondary: {
+    backgroundColor: 'rgba(255,255,255,0.10)',
+  },
+  heroMetricIcon: {
     width: 44,
     height: 44,
-    borderRadius: 12,
-    backgroundColor: '#EEF2FF',
+    borderRadius: BorderRadius['2xl'],
     justifyContent: 'center',
     alignItems: 'center',
   },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#0F172A',
+  heroMetricIconOverlay: {
+    backgroundColor: 'rgba(255,255,255,0.18)',
   },
-  loadingContainer: {
-    paddingVertical: 32,
-    alignItems: 'center',
+  heroMetricContent: {
+    flex: 1,
+    gap: Spacing['xs'],
   },
-  pendingList: {
-    gap: 0,
+  heroMetricLabel: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: Typography.fontWeight.semibold,
+    color: Colors.textInverse,
+    opacity: 0.72,
+    letterSpacing: 0.7,
   },
-  pendingItem: {
+  heroMetricValue: {
+    fontSize: Typography.fontSize['3xl'],
+    fontWeight: Typography.fontWeight.bold,
+    color: Colors.textInverse,
+  },
+  heroMetricMeta: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: Typography.fontWeight.medium,
+    color: Colors.textInverse,
+    opacity: 0.75,
+  },
+  sectionBlock: {
+    gap: Spacing['lg'],
+  },
+  sectionHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 16,
-    gap: 16,
+    justifyContent: 'space-between',
   },
-  pendingIconWrapper: {
-    width: 48,
-    height: 48,
+  sectionTitle: {
+    fontSize: Typography.fontSize.lg,
+    fontWeight: Typography.fontWeight.bold,
+    color: Colors.text,
+  },
+  sectionSubtitle: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: Typography.fontWeight.medium,
+    color: Colors.textSecondary,
+  },
+  metricsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing['md'],
+  },
+  metricCard: {
+    flexBasis: '48%',
+    flexGrow: 1,
+    padding: Spacing['lg'],
+    borderRadius: BorderRadius['2xl'],
+    backgroundColor: Colors.background,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    gap: Spacing['sm'],
+    ...Shadows.sm,
+  },
+  metricIconBadge: {
+    width: 40,
+    height: 40,
+    borderRadius: BorderRadius['2xl'],
     justifyContent: 'center',
     alignItems: 'center',
   },
-  pendingIconBg: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
-    backgroundColor: '#FEF3C7',
+  metricTitle: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: Typography.fontWeight.semibold,
+    color: Colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.7,
+  },
+  metricValue: {
+    fontSize: Typography.fontSize['2xl'],
+    fontWeight: Typography.fontWeight.bold,
+    color: Colors.text,
+  },
+  metricCaption: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: Typography.fontWeight.medium,
+    color: Colors.textSecondary,
+  },
+  quickActionsGrid: {
+    gap: Spacing['md'],
+  },
+  quickActionCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: Spacing['lg'],
+    borderRadius: BorderRadius['2xl'],
+    backgroundColor: Colors.background,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    gap: Spacing['lg'],
+    ...Shadows.sm,
+  },
+  quickActionIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: BorderRadius['2xl'],
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: Colors.primary + '12',
   },
-  pendingIconBgSalary: {
+  quickActionContent: {
+    flex: 1,
+    gap: Spacing['xs'],
+  },
+  quickActionLabel: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: Typography.fontWeight.semibold,
+    color: Colors.text,
+  },
+  quickActionDescription: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: Typography.fontWeight.medium,
+    color: Colors.textSecondary,
+  },
+  sectionCard: {
+    backgroundColor: Colors.background,
+    borderRadius: BorderRadius['2xl'],
+    padding: Spacing['2xl'],
+    borderWidth: 1,
+    borderColor: Colors.border,
+    gap: Spacing['lg'],
+    ...Shadows.sm,
+  },
+  loadingState: {
+    alignItems: 'center',
+    gap: Spacing['sm'],
+    paddingVertical: Spacing['2xl'],
+  },
+  loadingLabel: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: Typography.fontWeight.medium,
+    color: Colors.textSecondary,
+  },
+  pendingGrid: {
+    gap: Spacing['md'],
+  },
+  pendingCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing['lg'],
+    padding: Spacing['lg'],
+    borderRadius: BorderRadius['2xl'],
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.backgroundSecondary,
+  },
+  pendingIcon: {
     width: 48,
     height: 48,
-    borderRadius: 12,
-    backgroundColor: '#EDE9FE',
+    borderRadius: BorderRadius['2xl'],
     justifyContent: 'center',
     alignItems: 'center',
   },
   pendingContent: {
     flex: 1,
-    gap: 4,
+    gap: Spacing['xs'],
   },
-  pendingText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#0F172A',
+  pendingTitle: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: Typography.fontWeight.semibold,
+    color: Colors.text,
   },
-  pendingSubtext: {
-    fontSize: 12,
-    color: '#64748B',
-    fontWeight: '500',
+  pendingSubtitle: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: Typography.fontWeight.medium,
+    color: Colors.textSecondary,
   },
   pendingBadge: {
-    backgroundColor: '#EF4444',
-    minWidth: 32,
-    height: 32,
-    borderRadius: 16,
+    minWidth: 36,
+    borderRadius: BorderRadius.full,
+    paddingHorizontal: Spacing['md'],
+    paddingVertical: Spacing['xs'],
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 8,
   },
   pendingCount: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '700',
+    color: Colors.textInverse,
+    fontSize: Typography.fontSize.sm,
+    fontWeight: Typography.fontWeight.semibold,
   },
-  divider: {
-    height: 1,
-    backgroundColor: '#F1F5F9',
+  attendanceContent: {
+    gap: Spacing['lg'],
   },
-  attendanceSummary: {
-    fontSize: 15,
-    color: '#0F172A',
-    fontWeight: '600',
-    marginBottom: 12,
-  },
-  progressBar: {
-    height: 10,
-    backgroundColor: '#F1F5F9',
-    borderRadius: 5,
-    overflow: 'hidden',
-    marginBottom: 8,
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: '#10B981',
-    borderRadius: 5,
-  },
-  progressText: {
-    fontSize: 13,
-    color: '#64748B',
-    fontWeight: '500',
-  },
-  emptyStateContainer: {
-    paddingVertical: 40,
-    alignItems: 'center',
-    gap: 12,
-  },
-  emptyStateText: {
-    fontSize: 14,
-    color: '#64748B',
-    fontWeight: '500',
-  },
-  statsContainer: {
-    gap: 0,
-  },
-  statItemRow: {
+  attendanceSummaryRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 16,
-    gap: 16,
+    gap: Spacing['md'],
   },
-  statIconWrapper: {
+  attendanceSummaryBadge: {
     width: 48,
     height: 48,
+    borderRadius: BorderRadius['2xl'],
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: Colors.primary + '12',
   },
-  statContent: {
+  attendanceSummaryCopy: {
     flex: 1,
-    gap: 4,
+    gap: Spacing['xs'],
   },
-  statItemLabel: {
-    fontSize: 13,
-    color: '#64748B',
-    fontWeight: '500',
+  attendanceHeadline: {
+    fontSize: Typography.fontSize.lg,
+    fontWeight: Typography.fontWeight.bold,
+    color: Colors.text,
   },
-  statItemValue: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#0F172A',
+  attendanceSubheadline: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: Typography.fontWeight.medium,
+    color: Colors.textSecondary,
   },
-  statDivider: {
-    height: 1,
-    backgroundColor: '#F1F5F9',
+  attendanceProgressBar: {
+    height: 12,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.gray200,
+    overflow: 'hidden',
   },
-  pendingIconBgBreak: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
-    backgroundColor: '#EDE9FE',
+  attendanceProgressFill: {
+    height: '100%',
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.primary,
+  },
+  attendanceFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  attendancePercentage: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: Typography.fontWeight.semibold,
+    color: Colors.primaryDark,
+  },
+  attendanceMeta: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: Typography.fontWeight.medium,
+    color: Colors.textSecondary,
+  },
+  emptyState: {
+    alignItems: 'center',
+    gap: Spacing['sm'],
+    paddingVertical: Spacing['3xl'],
+  },
+  emptyStateTitle: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: Typography.fontWeight.semibold,
+    color: Colors.text,
+  },
+  emptyStateSubtitle: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: Typography.fontWeight.medium,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+  },
+  teamInsightGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing['md'],
+  },
+  teamInsightCard: {
+    flexBasis: '48%',
+    flexGrow: 1,
+    backgroundColor: Colors.backgroundSecondary,
+    borderRadius: BorderRadius['2xl'],
+    padding: Spacing['lg'],
+    gap: Spacing['md'],
+    alignItems: 'flex-start',
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  teamInsightIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: BorderRadius['2xl'],
     justifyContent: 'center',
     alignItems: 'center',
   },
-  breakRequestsScroll: {
-    maxHeight: 200,
+  teamInsightLabel: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: Typography.fontWeight.medium,
+    color: Colors.textSecondary,
+  },
+  teamInsightValue: {
+    fontSize: Typography.fontSize['2xl'],
+    fontWeight: Typography.fontWeight.bold,
+    color: Colors.text,
   },
 });
