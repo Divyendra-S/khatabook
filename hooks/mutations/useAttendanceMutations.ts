@@ -273,10 +273,45 @@ export const useDeleteAttendance = (
   return useMutation({
     mutationFn: ({ recordId }) =>
       attendanceMutations.deleteAttendance(recordId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: attendanceKeys.all });
+    onSuccess: async (data, variables, context) => {
+      // Invalidate and refetch ALL attendance and earnings queries
+      await queryClient.invalidateQueries({
+        queryKey: ["attendance"],
+        refetchType: "all",
+      });
+
+      await queryClient.invalidateQueries({
+        queryKey: ["salary"],
+        refetchType: "all",
+      });
+
+      await queryClient.invalidateQueries({
+        queryKey: ["earnings"],
+        refetchType: "all",
+      });
+
+      // Force refetch all active queries
+      await queryClient.refetchQueries({
+        queryKey: ["attendance"],
+        type: "active",
+      });
+
+      await queryClient.refetchQueries({
+        queryKey: ["salary"],
+        type: "active",
+      });
+
+      await queryClient.refetchQueries({
+        queryKey: ["earnings"],
+        type: "active",
+      });
+
+      // Call user's onSuccess if provided
+      options?.onSuccess?.(data, variables, context);
     },
-    ...options,
+    onError: options?.onError,
+    onMutate: options?.onMutate,
+    onSettled: options?.onSettled,
   });
 };
 

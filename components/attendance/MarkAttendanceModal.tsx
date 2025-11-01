@@ -15,7 +15,7 @@ import {
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuth } from '@/hooks/auth/useAuth';
 import { useAllUsers } from '@/hooks/queries/useUser';
-import { useMarkAttendance, useUpdateAttendance } from '@/hooks/mutations/useAttendanceMutations';
+import { useMarkAttendance, useUpdateAttendance, useDeleteAttendance } from '@/hooks/mutations/useAttendanceMutations';
 import { useBreakRequestsByAttendance } from '@/hooks/queries/useBreakRequests';
 import { AttendanceRecord, User } from '@/lib/types';
 import DatePicker from '@/components/ui/DatePicker';
@@ -146,6 +146,22 @@ export default function MarkAttendanceModal({
     },
     onError: (error) => {
       Alert.alert('Error', error.message || 'Failed to update attendance');
+    },
+  });
+
+  const deleteMutation = useDeleteAttendance({
+    onSuccess: async () => {
+      // Force refetch all attendance queries
+      await queryClient.refetchQueries({
+        queryKey: ['attendance'],
+        type: 'active',
+      });
+      Alert.alert('Success', 'Attendance deleted successfully');
+      onClose();
+      resetForm();
+    },
+    onError: (error) => {
+      Alert.alert('Error', error.message || 'Failed to delete attendance');
     },
   });
 
@@ -292,6 +308,74 @@ export default function MarkAttendanceModal({
     }
   };
 
+  const handleDelete = () => {
+    if (!existingRecord) return;
+
+    // Check for active or upcoming breaks before allowing deletion
+    const now = new Date();
+    const approvedBreaks = breakRequests?.filter((req) => req.status === 'approved') || [];
+
+    const activeOrUpcomingBreak = approvedBreaks.find((breakReq) => {
+      if (!breakReq.approved_start_time || !breakReq.approved_end_time) return false;
+
+      const startTime = new Date(breakReq.approved_start_time);
+      const endTime = new Date(breakReq.approved_end_time);
+
+      // Ongoing: current time is between start and end
+      const isOngoing = now >= startTime && now <= endTime;
+
+      // Upcoming: start time is in the future
+      const isUpcoming = now < startTime;
+
+      return isOngoing || isUpcoming;
+    });
+
+    if (activeOrUpcomingBreak) {
+      const startTime = new Date(activeOrUpcomingBreak.approved_start_time!);
+      const endTime = new Date(activeOrUpcomingBreak.approved_end_time!);
+      const isOngoing = now >= startTime && now <= endTime;
+
+      Alert.alert(
+        'Cannot Delete',
+        isOngoing
+          ? `This employee is currently on break (ends at ${endTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}). Please wait until the break is complete before deleting attendance.`
+          : `This employee has a scheduled break starting at ${startTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}. Please complete or cancel the break before deleting attendance.`,
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
+    // Calculate hours info for confirmation message
+    const hours = existingRecord.total_hours || 0;
+    const employeeName = selectedEmployee?.full_name || 'this employee';
+    const recordDate = new Date(existingRecord.date).toLocaleDateString('en-US', {
+      weekday: 'long',
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+
+    Alert.alert(
+      'Delete Attendance?',
+      `Are you sure you want to delete attendance for ${employeeName} on ${recordDate}?\n\n` +
+      `This will remove ${hours.toFixed(2)} hours from their record.\n\n` +
+      `Monthly earnings will be automatically recalculated.`,
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            deleteMutation.mutate({ recordId: existingRecord.id });
+          },
+        },
+      ]
+    );
+  };
+
   const selectedEmployee = employees?.find((e) => e.id === formData.userId);
   const filteredEmployees = employees?.filter((e) =>
     e.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -344,7 +428,7 @@ export default function MarkAttendanceModal({
     };
   }, [breakRequests]);
 
-  const isLoading = markMutation.isPending || updateMutation.isPending;
+  const isLoading = markMutation.isPending || updateMutation.isPending || deleteMutation.isPending;
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
@@ -613,7 +697,7 @@ export default function MarkAttendanceModal({
               disabled={isLoading || !isSelectedDateWorkingDay}
               activeOpacity={0.8}
             >
-              {isLoading ? (
+              {isLoading && (markMutation.isPending || updateMutation.isPending) ? (
                 <ActivityIndicator size="small" color="#FFFFFF" />
               ) : (
                 <>
@@ -628,6 +712,34 @@ export default function MarkAttendanceModal({
                 </>
               )}
             </TouchableOpacity>
+
+            {/* Delete Button - Only show when editing existing record */}
+            {existingRecord && !existingRecord.id.startsWith('absent-') && (
+              <TouchableOpacity
+                style={[
+                  styles.deleteButton,
+                  isLoading && styles.deleteButtonDisabled
+                ]}
+                onPress={handleDelete}
+                disabled={isLoading}
+                activeOpacity={0.8}
+              >
+                {isLoading && deleteMutation.isPending ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <>
+                    <Ionicons
+                      name="trash-outline"
+                      size={20}
+                      color="#FFFFFF"
+                    />
+                    <Text style={styles.deleteButtonText}>
+                      Delete Attendance
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            )}
           </ScrollView>
         </View>
       </KeyboardAvoidingView>
@@ -800,6 +912,29 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   submitButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  deleteButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#EF4444',
+    paddingVertical: 16,
+    borderRadius: 12,
+    marginTop: 12,
+    gap: 8,
+    shadowColor: '#EF4444',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  deleteButtonDisabled: {
+    opacity: 0.6,
+  },
+  deleteButtonText: {
     fontSize: 16,
     fontWeight: '700',
     color: '#FFFFFF',

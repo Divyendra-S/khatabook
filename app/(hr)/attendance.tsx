@@ -20,7 +20,9 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  Platform,
 } from "react-native";
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type StatusFilter = "all" | "present" | "absent" | "incomplete";
@@ -46,6 +48,7 @@ export default function HRAttendanceScreen() {
   const [selectedRecordForBreak, setSelectedRecordForBreak] = useState<
     AttendanceWithUser | undefined
   >(undefined);
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   const targetDate = formatDateToISO(selectedDate);
 
@@ -180,6 +183,16 @@ export default function HRAttendanceScreen() {
 
   const isToday = selectedDate.toDateString() === new Date().toDateString();
 
+  const handleDatePickerChange = (_event: any, date?: Date) => {
+    if (Platform.OS === 'android') {
+      setShowDatePicker(false);
+    }
+
+    if (date) {
+      setSelectedDate(date);
+    }
+  };
+
   const statusFilterOptions = [
     { value: "all" as StatusFilter, label: "All", count: records?.length || 0 },
     {
@@ -239,7 +252,11 @@ export default function HRAttendanceScreen() {
             <Ionicons name="chevron-back" size={24} color="#6366F1" />
           </TouchableOpacity>
 
-          <View style={styles.monthTextContainer}>
+          <TouchableOpacity
+            style={styles.monthTextContainer}
+            onPress={() => setShowDatePicker(true)}
+            activeOpacity={0.7}
+          >
             <MaterialCommunityIcons
               name="calendar-today"
               size={20}
@@ -253,7 +270,7 @@ export default function HRAttendanceScreen() {
                 year: "numeric",
               })}
             </Text>
-          </View>
+          </TouchableOpacity>
 
           <TouchableOpacity
             onPress={nextDay}
@@ -401,6 +418,48 @@ export default function HRAttendanceScreen() {
           }}
           attendanceRecord={selectedRecordForBreak}
         />
+      )}
+
+      {/* Date Picker Modal */}
+      {showDatePicker && (
+        <>
+          {Platform.OS === 'android' ? (
+            <DateTimePicker
+              value={selectedDate}
+              mode="date"
+              display="default"
+              onChange={handleDatePickerChange}
+              maximumDate={new Date()}
+            />
+          ) : (
+            <View style={styles.iosPickerOverlay}>
+              <TouchableOpacity
+                style={styles.iosPickerBackdrop}
+                activeOpacity={1}
+                onPress={() => setShowDatePicker(false)}
+              />
+              <View style={styles.iosPickerContainer}>
+                <View style={styles.iosPickerHeader}>
+                  <Text style={styles.iosPickerTitle}>Select Date</Text>
+                  <TouchableOpacity
+                    onPress={() => setShowDatePicker(false)}
+                    style={styles.iosPickerDoneButton}
+                  >
+                    <Text style={styles.iosPickerDoneText}>Done</Text>
+                  </TouchableOpacity>
+                </View>
+                <DateTimePicker
+                  value={selectedDate}
+                  mode="date"
+                  display="spinner"
+                  onChange={handleDatePickerChange}
+                  maximumDate={new Date()}
+                  style={styles.iosDatePicker}
+                />
+              </View>
+            </View>
+          )}
+        </>
       )}
     </View>
   );
@@ -575,5 +634,56 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#94A3B8",
     textAlign: "center",
+  },
+  iosPickerOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'flex-end',
+    zIndex: 1000,
+  },
+  iosPickerBackdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  iosPickerContainer: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingBottom: 20,
+  },
+  iosPickerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+  },
+  iosPickerTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  iosPickerDoneButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: '#6366F1',
+    borderRadius: 8,
+  },
+  iosPickerDoneText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  iosDatePicker: {
+    height: 200,
   },
 });
