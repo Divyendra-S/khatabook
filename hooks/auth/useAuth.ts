@@ -10,11 +10,12 @@ export const useAuth = () => {
 
   useEffect(() => {
     // Get initial session
-    supabase.auth.getSession().then(({ data: { session }, error }) => {
-      // Handle invalid refresh token
+    supabase.auth.getSession().then(async ({ data: { session }, error }) => {
+      // Handle invalid/expired refresh token gracefully
       if (error) {
-        console.error('Session error:', error);
-        supabase.auth.signOut();
+        console.log('Session error (clearing invalid session):', error.message);
+        // Clear invalid session data
+        await supabase.auth.signOut({ scope: 'local' });
         setSession(null);
         setUser(null);
         setLoading(false);

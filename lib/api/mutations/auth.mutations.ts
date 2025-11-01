@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase/client';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export const authMutations = {
   /**
@@ -52,11 +53,18 @@ export const authMutations = {
   },
 
   /**
-   * Sign out
+   * Sign out - local only (doesn't affect other devices)
    */
   signOut: async () => {
-    const { error } = await supabase.auth.signOut();
+    const { error } = await supabase.auth.signOut({ scope: 'local' });
     if (error) throw error;
+    
+    // Clear AsyncStorage to prevent refresh token errors on restart
+    const keys = await AsyncStorage.getAllKeys();
+    const supabaseKeys = keys.filter(key => key.includes('supabase'));
+    if (supabaseKeys.length > 0) {
+      await AsyncStorage.multiRemove(supabaseKeys);
+    }
   },
 
   /**

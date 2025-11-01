@@ -48,10 +48,15 @@ export const useSignOut = (
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: () => authMutations.signOut(),
+    mutationFn: async () => {
+      await authMutations.signOut();
+      // Small delay to ensure auth state change propagates
+      await new Promise(resolve => setTimeout(resolve, 100));
+    },
     onSuccess: () => {
       // Clear all queries on sign out
       queryClient.clear();
+      // Navigate to login after clearing
       router.replace('/auth/login');
     },
     ...options,
